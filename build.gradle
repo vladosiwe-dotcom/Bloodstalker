@@ -35,6 +35,7 @@ neoForge {
             systemProperty 'gorewidow.showcase.mind', System.getProperty('gorewidow.showcase.mind', 'false')
             systemProperty 'gorewidow.showcase.lair', System.getProperty('gorewidow.showcase.lair', 'false')
             systemProperty 'gorewidow.showcase.ride', System.getProperty('gorewidow.showcase.ride', 'false')
+            systemProperty 'gorewidow.showcase.motion', System.getProperty('gorewidow.showcase.motion', 'false')
             systemProperty 'gorewidow.showcase.family', System.getProperty('gorewidow.showcase.family', 'false')
             programArguments.addAll '--quickPlaySingleplayer', System.getProperty('gorewidow.showcase.world', 'showcase'), '--width', '1280', '--height', '720'
         }

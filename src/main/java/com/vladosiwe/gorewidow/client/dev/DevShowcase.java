@@ -106,6 +106,10 @@ public final class DevShowcase {
             SCENES.clear();
             defineRideScenes();
         }
+        if (Boolean.getBoolean("gorewidow.showcase.motion")) {
+            SCENES.clear();
+            defineMotionScenes();
+        }
         if (Boolean.getBoolean("gorewidow.showcase.mind")) {
             SCENES.clear();
             defineMindScenes();
@@ -309,6 +313,40 @@ public final class DevShowcase {
             c.first().setRiderGliding(true);
             c.first().setDeltaMovement(c.first().getDeltaMovement().multiply(1, 0, 1).add(0, -0.1, 0));
         }, new Vec3(-6, 7, -6), new Vec3(0, 9, 0), false));
+    }
+
+    /** Film strips (a frame every 3 ticks) to judge how smooth movement looks. */
+    private static void defineMotionScenes() {
+        SCENES.add(new Scene("corner_film", 120, c -> {
+            c.fill(3, 0, -4, 3, 6, 4, Blocks.STONE_BRICKS.defaultBlockState());
+            c.fill(-7, 7, -4, 3, 7, 4, Blocks.STONE_BRICKS.defaultBlockState());
+            c.widow(0.3, 0, 0, 270);
+        }, c -> {
+            Vec3 goal = ticks < 70 ? c.at(2.1, 6.0, 0) : c.at(-5, 6.0, 0);
+            c.first().getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, 0.6);
+            if (ticks % 3 == 0) {
+                LOGGER.info("corner t={} surface={} pos={} hc={}", ticks, c.first().getSurface(), c.first().position(), c.first().horizontalCollision);
+            }
+        }, new Vec3(-3, 3.5, -9), new Vec3(0, 3.5, 0), false));
+        SCENES.add(new Scene("glide_film", 45, c -> {
+            GorewidowEntity w = c.widow(0, 12, 0, 30);
+            w.tame(c.player);
+        }, c -> {
+            GorewidowEntity w = c.first();
+            if (ticks == 6) {
+                w.setDeltaMovement(0.25, 0.55, 0.1);   // a leap
+            }
+            boolean glide = ticks > 14;
+            w.setRiderGliding(glide);
+            if (glide && w.getDeltaMovement().y < -0.11) {
+                w.setDeltaMovement(w.getDeltaMovement().multiply(0.96, 0, 0.96).add(0, -0.11, 0));
+            }
+        }, new Vec3(-7, 9, -8), new Vec3(1, 10, 0), false));
+        SCENES.add(new Scene("swing_film", 45, c -> {
+            c.fill(-1, 15, -1, 1, 15, 1, Blocks.SPRUCE_LOG.defaultBlockState());
+            GorewidowEntity w = c.widow(0.5, 0, -9, 0);
+            w.shootWeb(c.at(0.5, 15, 0), GorewidowEntity.WebPurpose.TRAVERSE);
+        }, c -> c.first().setAiReel(ticks < 26 ? 1.0F : 0.0F), new Vec3(-14, 7, -2), new Vec3(0, 7.5, -2), false));
     }
 
     private static void defineFamilyScenes() {
@@ -602,6 +640,10 @@ public final class DevShowcase {
             mc.player.setXRot(pitch);
             mc.player.yRotO = yaw;
             mc.player.xRotO = pitch;
+        }
+        if (scene.name().endsWith("_film") && ticks % 3 == 0 && ticks > 0 && ticks < scene.settleTicks()) {
+            Screenshot.grab(mc.gameDirectory, "film_" + scene.name() + "_" + String.format("%03d", ticks) + ".png",
+                    mc.getMainRenderTarget(), msg -> {});
         }
         if (ticks == scene.settleTicks()) {
             net.minecraft.world.entity.Entity cr = rider == null ? null : mc.level.getEntity(rider.getId());

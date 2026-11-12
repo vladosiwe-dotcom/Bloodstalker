@@ -243,6 +243,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private boolean usedAirJump;
     private boolean riderGliding;
     private int glideTicks;
+    private Direction previousSurface = Direction.DOWN;
+    /** Ticks after a surface change during which it will not flip straight back. */
+    private int surfaceSettle;
+    /** Wild/unridden parachute after a long fall. */
+    private boolean autoSail;
+    /** Ticks of near-hover when a glide starts. */
+    public static final int HOVER_TICKS = 12;
     private int riderDrainTimer;
     private int slingCooldown;
     private int clientSlingStart = -100;
@@ -1041,6 +1048,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (newSurface == this.surface) {
             return;
         }
+        this.previousSurface = this.surface;
+        this.surfaceSettle = 16;
         this.surface = newSurface;
         boolean attached = newSurface != Direction.DOWN;
         if (attached) {
@@ -1145,15 +1154,33 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.onGround()) {
             this.usedAirJump = false;
             this.glideTicks = 0;
+            if (this.autoSail) {
+                this.autoSail = false;
+                this.entityData.set(DATA_GLIDING, false);
+            }
         } else if (this.riderGliding && this.getControllingPassenger() instanceof Player rider && this.getStamina() > 1.0F) {
-            // silk parachute: cap the fall and drift where the rider looks
+            // membrane sail: legs spread wide, skin stretched flat. For a moment at the top it hangs
+            // almost still in the air, then sinks slowly, drifting where the rider looks
             Vec3 v = this.getDeltaMovement();
             Vec3 look = rider.getLookAngle();
-            if (v.y < -0.11) {
-                this.setDeltaMovement(v.x * 0.96 + look.x * 0.025, -0.11, v.z * 0.96 + look.z * 0.025);
+            double cap = this.glideTicks < HOVER_TICKS ? -0.025 : -0.11;
+            if (v.y < cap) {
+                this.setDeltaMovement(v.x * 0.96 + look.x * 0.025, cap, v.z * 0.96 + look.z * 0.025);
             }
             this.resetFallDistance();
             this.glideTicks++;
+        } else if (!this.level().isClientSide && this.getControllingPassenger() == null && !this.getWebMode().isRope()
+                && !this.isInWater() && (this.autoSail || this.fallDistance > 4.0F && this.getDeltaMovement().y < -0.35)) {
+            // a long fall: it throws its legs wide and parachutes down on its membranes
+            Vec3 v = this.getDeltaMovement();
+            if (v.y < -0.16) {
+                this.setDeltaMovement(v.x * 0.97, -0.16, v.z * 0.97);
+            }
+            this.resetFallDistance();
+            if (!this.autoSail) {
+                this.autoSail = true;
+                this.entityData.set(DATA_GLIDING, true);
+            }
         }
         if (!this.horizontalCollision || this.isInWater() || this.isPassenger()) {
             this.stuckTicks = 0;
@@ -1171,7 +1198,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             climb = input.z > 0.1;
         } else {
             wish = new Vec3(this.aiMoveDir.x, 0, this.aiMoveDir.z);
-            climb = this.aiMoveDir.y > 0.15 || this.stuckTicks > 6;
+            climb = this.aiMoveDir.y > 0.15 || this.stuckTicks > 2;
         }
         if (climb && wish.lengthSqr() > 1.0E-4) {
             Direction wall = null;
@@ -1192,6 +1219,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     }
 
     private void travelSurface(Vec3 input) {
+        if (this.surfaceSettle > 0) {
+            this.surfaceSettle--;
+        }
         Vec3 n = this.getSurfaceNormal();
         Vec3 desired = this.desiredDirection(input, n);
         Vec3 t = desired.subtract(n.scale(desired.dot(n)));
@@ -1221,6 +1251,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 }
                 Vec3 dv = Vec3.atLowerCornerOf(d.getNormal());
                 double dot = tn.dot(dv);
+                // just came off that surface: only go back if really heading into it (no corner flicker)
+                if (d == this.previousSurface && this.surfaceSettle > 0) {
+                    continue;
+                }
                 if (dot > bestDot && moved.dot(dv) < targetVel.dot(dv) * 0.4 && this.hasContact(d)) {
                     bestDot = dot;
                     blocked = d;

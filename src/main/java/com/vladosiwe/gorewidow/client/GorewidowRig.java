@@ -116,7 +116,7 @@ public final class GorewidowRig {
             this.orientation.set(target);
             this.initialised = true;
         } else if (!widow.isDeadOrDying()) {
-            float rate = roped ? 7.0F : 11.0F;
+            float rate = roped ? 7.0F : 8.0F;
             this.orientation.slerp(target, 1.0F - (float) Math.exp(-rate * dt));
         }
         this.orientation.normalize();
@@ -127,7 +127,19 @@ public final class GorewidowRig {
         this.originOffset += (targetOffset - this.originOffset) * (1.0F - (float) Math.exp(-8.0F * dt));
 
         Vec3 lerped = widow.getPosition(partialTick);
-        Vec3 offset = new Vec3(0, widow.getBbHeight() * 0.5, 0).subtract(new Vec3(this.up).scale(this.originOffset));
+        // a surface change can move the entity in one step (wrapping round an edge): absorb that jump
+        // into a correction that fades out, so the body glides over instead of popping
+        if (this.lastLerped != null && !widow.isDeadOrDying()) {
+            Vec3 jump = lerped.subtract(this.lastLerped);
+            double expected = widow.getDeltaMovement().length() * Math.max(1.0, dt * 20.0) + 0.12;
+            if (jump.length() > expected + 0.25 && jump.length() < 3.0) {
+                this.positionCorrection = this.positionCorrection.subtract(jump.normalize().scale(jump.length() - expected));
+            }
+        }
+        this.lastLerped = lerped;
+        this.positionCorrection = this.positionCorrection.scale(Math.exp(-9.0 * dt));
+        Vec3 offset = new Vec3(0, widow.getBbHeight() * 0.5, 0).subtract(new Vec3(this.up).scale(this.originOffset))
+                .add(this.positionCorrection);
         this.origin = lerped.add(offset);
         return offset;
     }
@@ -155,6 +167,12 @@ public final class GorewidowRig {
     }
 
     private float claspHold;
+    @Nullable
+    private Vec3 lastLerped;
+    private Vec3 positionCorrection = Vec3.ZERO;
+    private float sail;
+    /** Leg roll (deg) that turns the membranes flat while sailing. */
+    private static final float SAIL_ROLL = 70.0F;
 
     public Vec3 modelToWorld(float x, float y, float z) {
         float k = PX * this.scale;
@@ -367,6 +385,8 @@ public final class GorewidowRig {
         this.spread += (spreadTarget - this.spread) * blend;
         this.raise += (raiseTarget - this.raise) * blend * 1.5F;
         this.grip += (gripTarget - this.grip) * blend;
+        float sailTarget = !dead && !roped && widow.isGliding() && !widow.onGround() ? 1.0F : 0.0F;
+        this.sail += (sailTarget - this.sail) * blend * 0.8F;
 
         // ---- feet for this frame
         for (int i = 0; i < LEGS; i++) {
@@ -493,6 +513,13 @@ public final class GorewidowRig {
                 angles = mix(angles, gripping, this.grip * 0.6F);
             }
 
+            if (this.sail > 0.001F) {
+                // sail: legs thrown wide and nearly flat, tips curling down, skin rippling in the air
+                float ripple = Mth.sin(time * 14 + i * 0.9F) * 0.06F;
+                float[] sailPose = {(idx < 2 ? -1 : 1) * (float) Math.toRadians(8), (float) Math.toRadians(14) + ripple,
+                        (float) Math.toRadians(-26) - ripple, (float) Math.toRadians(-38)};
+                angles = mix(angles, sailPose, this.sail);
+            }
             // grabbing: the front two pairs close around the victim's body from their own side
             if (grabBox != null && idx < 2 && this.grip > 0.01F) {
                 Vec3 centre = grabBox.getCenter();
@@ -513,7 +540,8 @@ public final class GorewidowRig {
             coxa.setRotX(0);
             coxa.setRotZ(0);
             femur.setRotZ(c * angles[1]);
-            femur.setRotX(0);
+            // rolling the leg about its own length lays the membrane under it flat like a canopy
+            femur.setRotX(this.sail * (float) Math.toRadians(SAIL_ROLL) * (idx < 2 ? 1 : -1) * c);
             femur.setRotY(0);
             tibia.setRotZ(c * angles[2]);
             tibia.setRotX(0);

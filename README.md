@@ -144,7 +144,7 @@ takes 35% less damage and the mount carries 60 more weight.
 | Key (rebindable) | Action |
 |---|---|
 | W/A/S/D | Move relative to where you look, on any surface. Walk into a wall to climb it |
-| Space | Leap. In the air, tap it again for a **double jump**; **hold** it while falling for a silk **parachute**. On a wall or ceiling, jump off it. On a web line, let go and keep the momentum |
+| Space | Leap. In the air, tap it again for a **double jump**; **hold** it while falling to **sail**: it throws its legs wide and rolls them so the membranes lie flat like a canopy, hangs almost still for a moment, then sinks slowly, drifting where you look. On a wall or ceiling, jump off it. On a web line, let go and keep the momentum |
 | R | Shoot a web line at the crosshair: a block becomes a swing anchor, a creature gets pulled in. Press again to release |
 | C | **Slingshot**: fire two lines in a V ahead and launch yourself between them (25 stamina) |
 | Z / X | Reel the line in / pay it out |
@@ -172,6 +172,8 @@ Passives, after ARK's Bloodstalker:
   you carry one, otherwise your own blood.
 - **Skates on water.** Its long legs keep it standing on the surface.
 - **Climbs anything**, wrapping around edges and onto ceilings.
+- **Sails on its membranes.** A wild one that falls more than a few blocks spreads its legs and
+  parachutes down unhurt.
 
 ## How it is built
 
@@ -181,6 +183,9 @@ Passives, after ARK's Bloodstalker:
   in/out, momentum and grabbing whatever it swings into. Whoever controls the creature runs the
   physics (the server for the AI, the rider's client while ridden), and surface changes sync to
   the server.
+- **Smooth surface changes.** The body turns onto a new surface over a fraction of a second, a
+  one-step position change (wrapping round an outer edge) is blended out over a few frames, and
+  right after a change it does not flip straight back (no flicker in inside corners).
 - **Procedural rig** (`client/GorewidowRig`). Every foot is planted in the world and re-placed in
   an alternating gait by ray-casting the surface ahead. An analytic IK solve per leg (coxa yaw plus
   two-bone with a near-vertical tarsus) reaches the planted foot, and the body pitches, rolls and
@@ -204,7 +209,9 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
                               # incubation and hatching, imprinting, pulling riders off mounts
 ./gradlew runShowcase         # dev only: needs a world in run/saves/showcase; stages every
                               # state and saves screenshots to run/screenshots
-                              # (-Dgorewidow.showcase.ui / .mind / .ride / .family / .lair = true)
+                              # (-Dgorewidow.showcase.ui / .mind / .ride / .family / .lair = true;
+                              # .motion = true films floor-wall-ceiling, leap+sail and web swing,
+                              # a frame every 3 ticks)
 ```
 
 Screenshots from the real game are in `docs/screenshots/`.
