@@ -44,6 +44,16 @@ public final class GorewidowStats {
     private final int[] tamed = new int[STATS.length];
     private int unspent;
     private float xp;
+    /** 0..1 imprint quality; adds up to +20% to every stat but speed. */
+    private float imprint;
+    /** Mutations inherited down the mother's and father's lines. */
+    private int mutationsMaternal;
+    private int mutationsPaternal;
+    private int generation;
+
+    public static final float MUTATION_CHANCE = 0.025F;
+    public static final int MUTATION_POINTS = 2;
+    public static final int MUTATION_LIMIT = 20;
 
     public int level() {
         return 1 + Arrays.stream(this.wild).sum() + Arrays.stream(this.tamed).sum();
@@ -75,7 +85,60 @@ public final class GorewidowStats {
 
     public double value(Stat stat) {
         int points = this.wild[stat.ordinal()] + this.tamed[stat.ordinal()];
-        return stat.base * (1.0 + stat.perPoint * points);
+        double imprintBonus = stat == Stat.SPEED ? 1.0 : 1.0 + 0.2 * this.imprint;
+        return stat.base * (1.0 + stat.perPoint * points) * imprintBonus;
+    }
+
+    public float imprint() {
+        return this.imprint;
+    }
+
+    public void setImprint(float imprint) {
+        this.imprint = Math.max(0, Math.min(1, imprint));
+    }
+
+    public int mutations() {
+        return this.mutationsMaternal + this.mutationsPaternal;
+    }
+
+    public int generation() {
+        return this.generation;
+    }
+
+    /**
+     * ARK-style inheritance: each stat's wild points come from one parent, the stronger parent winning
+     * 55% of the time; each line may add a mutation (+2 points in a random stat) while its counter is
+     * below the limit. Tamed points and experience are not inherited.
+     */
+    public static GorewidowStats inherit(GorewidowStats mother, GorewidowStats father, RandomSource random) {
+        GorewidowStats child = new GorewidowStats();
+        for (Stat stat : STATS) {
+            int m = mother.wild[stat.ordinal()];
+            int f = father.wild[stat.ordinal()];
+            int high = Math.max(m, f);
+            int low = Math.min(m, f);
+            child.wild[stat.ordinal()] = random.nextFloat() < 0.55F ? high : low;
+        }
+        child.mutationsMaternal = mother.mutationsMaternal + mother.mutationsPaternal;
+        child.mutationsPaternal = father.mutationsMaternal + father.mutationsPaternal;
+        if (child.mutationsMaternal < MUTATION_LIMIT && random.nextFloat() < MUTATION_CHANCE) {
+            child.mutate(random);
+            child.mutationsMaternal++;
+        }
+        if (child.mutationsPaternal < MUTATION_LIMIT && random.nextFloat() < MUTATION_CHANCE) {
+            child.mutate(random);
+            child.mutationsPaternal++;
+        }
+        child.generation = Math.max(mother.generation, father.generation) + 1;
+        return child;
+    }
+
+    private void mutate(RandomSource random) {
+        Stat stat;
+        do {
+            stat = STATS[random.nextInt(STATS.length)];
+        } while (!stat.wildRollable);
+        this.wild[stat.ordinal()] += MUTATION_POINTS;
     }
 
     /** Experience needed to go from the current level to the next one. */
@@ -136,6 +199,10 @@ public final class GorewidowStats {
         tag.putIntArray("Tamed", this.tamed.clone());
         tag.putInt("Unspent", this.unspent);
         tag.putFloat("Xp", this.xp);
+        tag.putFloat("Imprint", this.imprint);
+        tag.putInt("MutM", this.mutationsMaternal);
+        tag.putInt("MutP", this.mutationsPaternal);
+        tag.putInt("Generation", this.generation);
         return tag;
     }
 
@@ -144,6 +211,10 @@ public final class GorewidowStats {
         copy(tag.getIntArray("Tamed"), this.tamed);
         this.unspent = tag.getInt("Unspent");
         this.xp = tag.getFloat("Xp");
+        this.imprint = tag.getFloat("Imprint");
+        this.mutationsMaternal = tag.getInt("MutM");
+        this.mutationsPaternal = tag.getInt("MutP");
+        this.generation = tag.getInt("Generation");
     }
 
     private static void copy(int[] src, int[] dst) {

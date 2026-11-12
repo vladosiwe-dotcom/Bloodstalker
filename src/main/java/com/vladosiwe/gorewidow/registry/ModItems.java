@@ -29,6 +29,9 @@ public final class ModItems {
             tooltip.add(Component.translatable("item.gorewidow.gorewidow_harness.tooltip").withStyle(net.minecraft.ChatFormatting.GRAY));
         }
     }, new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON));
+    /** Fertilized egg laid after mating; carries the child's inherited stats. */
+    public static final DeferredItem<com.vladosiwe.gorewidow.item.GorewidowEggItem> EGG = ITEMS.registerItem("gorewidow_egg",
+            com.vladosiwe.gorewidow.item.GorewidowEggItem::new, new Item.Properties().stacksTo(1).rarity(Rarity.RARE));
     public static final DeferredItem<DeferredSpawnEggItem> SPAWN_EGG = ITEMS.register("gorewidow_spawn_egg", () ->
             new DeferredSpawnEggItem(ModEntities.GOREWIDOW, 0x1E080A, 0xB3121E, new Item.Properties()));
 
@@ -39,6 +42,7 @@ public final class ModItems {
                 output.accept(SPAWN_EGG.get());
                 output.accept(BLOOD_VIAL.get());
                 output.accept(HARNESS.get());
+                output.accept(EGG.get());
             })
             .build());
 

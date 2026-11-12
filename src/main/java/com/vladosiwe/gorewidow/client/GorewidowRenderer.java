@@ -42,6 +42,10 @@ public class GorewidowRenderer extends GeoEntityRenderer<GorewidowEntity> {
         Vec3 offset = rig.updateFrame(animatable, partialTick);
         poseStack.translate(offset.x, offset.y, offset.z);
         poseStack.mulPose(rig.orientation());
+        float scale = rig.scale();
+        if (scale != 1.0F) {
+            poseStack.scale(scale, scale, scale);
+        }
     }
 
     @Override

@@ -9,7 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 /** Owner -> server: an option picked on the creature's radial wheel. */
 public record CreatureActionPayload(int entityId, Action action) implements CustomPacketPayload {
     public enum Action {
-        RIDE, INVENTORY, FOLLOW, STAY, WANDER, AGGRESSIVE, NEUTRAL, PASSIVE, PET, DROP_HARNESS
+        RIDE, INVENTORY, FOLLOW, STAY, WANDER, AGGRESSIVE, NEUTRAL, PASSIVE, PET, DROP_HARNESS, TOGGLE_MATING, FOLLOW_DISTANCE, TOGGLE_RIDERS
     }
 
     public static final Type<CreatureActionPayload> TYPE = new Type<>(Gorewidow.id("creature_action"));

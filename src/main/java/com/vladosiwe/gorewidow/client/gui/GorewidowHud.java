@@ -78,7 +78,8 @@ public final class GorewidowHud {
         Component wildHint = feeder == player ? Component.translatable("gui.gorewidow.hint_feeding")
                 : Component.translatable("gui.gorewidow.hint_wild");
         int w = Math.max(190, tame ? 0 : font.width(wildHint) + 12);
-        int lines = 4 + (taming_ ? 4 : 0) + (tame ? 2 : 1);
+        boolean baby = widow.isBaby();
+        int lines = 5 + (taming_ ? 4 : 0) + (tame ? 2 : 1) + (baby ? 2 : 0);
         int h = 8 + lines * 11;
         int x = screenW / 2 - w / 2;
         int y = 6;
@@ -92,6 +93,27 @@ public final class GorewidowHud {
         UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("stat.gorewidow.health").getString(),
                 UiDraw.num(widow.getHealth()) + "/" + UiDraw.num(widow.getMaxHealth()), widow.getHealth() / widow.getMaxHealth(), UiDraw.HEALTH);
         cy += 16;
+
+        // sex and lineage (and, for babies, growth, imprint and what it wants)
+        com.vladosiwe.gorewidow.entity.GorewidowStats st = widow.getStats();
+        Component sex = Component.translatable(widow.isFemale() ? "gui.gorewidow.female" : "gui.gorewidow.male");
+        g.drawString(font, Component.translatable("gui.gorewidow.lineage", sex, st.generation(), st.mutations()), x + 6, cy,
+                widow.isFemale() ? 0xFFFF9ACD : 0xFF8FC8FF, false);
+        if (tame && st.imprint() > 0 && !baby) {
+            String imp = Component.translatable("gui.gorewidow.imprint", Math.round(st.imprint() * 100)).getString();
+            g.drawString(font, imp, x + w - 6 - font.width(imp), cy, UiDraw.XP, false);
+        }
+        cy += 11;
+        if (baby) {
+            g.drawString(font, Component.translatable("gui.gorewidow.baby", Math.round(widow.getMaturity() * 100), Math.round(st.imprint() * 100)),
+                    x + 6, cy, UiDraw.XP, false);
+            cy += 11;
+            com.vladosiwe.gorewidow.entity.GorewidowNursery.Care care = widow.getCareRequest();
+            if (care != com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.NONE) {
+                g.drawString(font, Component.translatable("gui.gorewidow.wants", care.label(), "!"), x + 6, cy, 0xFFFFD36B, false);
+            }
+            cy += 11;
+        }
 
         // what it thinks of you, and what it is up to
         float trust = widow.getMind().trust(player);

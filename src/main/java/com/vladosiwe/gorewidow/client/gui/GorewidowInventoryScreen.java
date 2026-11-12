@@ -34,7 +34,7 @@ public class GorewidowInventoryScreen extends AbstractContainerScreen<GorewidowM
     public GorewidowInventoryScreen(GorewidowMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 352;
-        this.imageHeight = 184;
+        this.imageHeight = 188;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class GorewidowInventoryScreen extends AbstractContainerScreen<GorewidowM
         this.statButtons.clear();
         for (int i = 0; i < GorewidowStats.STATS.length; i++) {
             int id = GorewidowMenu.BUTTON_STAT + i;
-            Button b = Button.builder(Component.literal("+"), btn -> this.click(id)).bounds(x + 154, y + 46 + i * 15, 11, 11).build();
+            Button b = Button.builder(Component.literal("+"), btn -> this.click(id)).bounds(x + 154, y + 54 + i * 15, 11, 11).build();
             this.statButtons.add(this.addRenderableWidget(b));
         }
         this.commandButtons.clear();
@@ -62,14 +62,14 @@ public class GorewidowInventoryScreen extends AbstractContainerScreen<GorewidowM
         for (int i = 0; i < commands.length; i++) {
             int id = GorewidowMenu.BUTTON_COMMAND + i;
             this.commandButtons.add(this.addRenderableWidget(Button.builder(commands[i].label(), btn -> this.click(id))
-                    .bounds(x + 4 + i * 54, y + 150, 53, 13).build()));
+                    .bounds(x + 4 + i * 54, y + 155, 53, 13).build()));
         }
         this.aggressionButtons.clear();
         AggressionMode[] modes = AggressionMode.values();
         for (int i = 0; i < modes.length; i++) {
             int id = GorewidowMenu.BUTTON_AGGRESSION + i;
             this.aggressionButtons.add(this.addRenderableWidget(Button.builder(Component.translatable("gui.gorewidow.aggr." + modes[i].name().toLowerCase(java.util.Locale.ROOT)), btn -> this.click(id))
-                    .bounds(x + 4 + i * 54, y + 166, 53, 13).build()));
+                    .bounds(x + 4 + i * 54, y + 170, 53, 13).build()));
         }
         this.addRenderableWidget(Button.builder(Component.translatable("gui.gorewidow.ride"), btn -> this.click(GorewidowMenu.BUTTON_RIDE))
                 .bounds(x + 302, y + 3, 46, 13).build());
@@ -154,10 +154,14 @@ public class GorewidowInventoryScreen extends AbstractContainerScreen<GorewidowM
                 : Component.translatable("gui.gorewidow.level", widow.getLevel());
         g.drawString(this.font, level, 6, 22, unspent > 0 ? UiDraw.XP : UiDraw.TEXT, false);
         UiDraw.bar(g, 6, 32, 158, 5, stats.xp() / stats.xpToNext(), UiDraw.XP);
+        Component sex = Component.translatable(widow.isFemale() ? "gui.gorewidow.female" : "gui.gorewidow.male");
+        String lineage = Component.translatable("gui.gorewidow.lineage", sex, stats.generation(), stats.mutations()).getString()
+                + (stats.imprint() > 0 ? "  ·  " + Component.translatable("gui.gorewidow.imprint", Math.round(stats.imprint() * 100)).getString() : "");
+        g.drawString(this.font, lineage, 6, 40 - 2 + 0, widow.isFemale() ? 0xFFFF9ACD : 0xFF8FC8FF, false);
 
         int row = 0;
         for (GorewidowStats.Stat stat : GorewidowStats.STATS) {
-            int ry = 44 + row * 15;
+            int ry = 52 + row * 15;
             String value;
             float frac;
             int color;
@@ -177,7 +181,7 @@ public class GorewidowInventoryScreen extends AbstractContainerScreen<GorewidowM
             UiDraw.bar(g, 6, ry + 9, 144, 3, frac, color);
             row++;
         }
-        g.drawString(this.font, Component.translatable("gui.gorewidow.orders"), 6, 138, UiDraw.TEXT_DIM, false);
+        g.drawString(this.font, Component.translatable("gui.gorewidow.orders"), 6, 144, UiDraw.TEXT_DIM, false);
 
         int right = LEFT_W + 8;
         String harness = Component.translatable("gui.gorewidow.harness").getString();

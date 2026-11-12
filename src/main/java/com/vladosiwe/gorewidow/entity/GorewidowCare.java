@@ -336,6 +336,7 @@ public final class GorewidowCare {
         this.widow.playSound(ModSounds.PURR.get(), 1.0F, 1.0F);
         this.widow.level().broadcastEntityEvent(this.widow, (byte) 7);
         this.widow.mind.onFedByHand(player);
+        this.widow.nursery.onFed(player);
     }
 
     // ================================================================== stamina

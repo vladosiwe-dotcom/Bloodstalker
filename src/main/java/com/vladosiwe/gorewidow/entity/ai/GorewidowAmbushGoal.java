@@ -32,6 +32,9 @@ public class GorewidowAmbushGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        if (this.widow.isBaby()) {
+            return false;
+        }
         if (this.widow.isTame() || this.widow.getTarget() != null || this.widow.isVehicle() || this.widow.isLeashed()
                 || this.widow.getWebMode() != WebMode.NONE || !this.widow.isOnFloor() || !this.widow.onGround()
                 || this.widow.getWebCooldown() > 0 || this.widow.getRandom().nextInt(200) != 0) {

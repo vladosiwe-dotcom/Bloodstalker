@@ -119,6 +119,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final EntityDataAccessor<Vector3f> DATA_SLING_B = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.VECTOR3);
     private static final EntityDataAccessor<Integer> DATA_SLING_COUNT = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_GLIDING = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_FEMALE = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_MATING = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Byte> DATA_CARE = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Float> DATA_MATURITY = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Byte> DATA_FOLLOW = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Boolean> DATA_ALLOW_RIDERS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -199,6 +205,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     final GorewidowInventory inventory = new GorewidowInventory(this);
     final GorewidowCare care = new GorewidowCare(this);
     final GorewidowMind mind = new GorewidowMind(this);
+    final GorewidowNursery nursery = new GorewidowNursery(this);
     private int moodSetTick;
 
     // ------------------------------------------------------------------ riding sequence and abilities
@@ -275,6 +282,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_SLING_B, new Vector3f());
         builder.define(DATA_SLING_COUNT, 0);
         builder.define(DATA_GLIDING, false);
+        builder.define(DATA_FEMALE, false);
+        builder.define(DATA_MATING, false);
+        builder.define(DATA_CARE, (byte) 0);
+        builder.define(DATA_MATURITY, 1.0F);
+        builder.define(DATA_FOLLOW, (byte) GorewidowNursery.FollowDistance.MEDIUM.ordinal());
+        builder.define(DATA_ALLOW_RIDERS, false);
     }
 
     @Override
@@ -310,6 +323,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         tag.put("Inventory", this.inventory.createTag(this.registryAccess()));
         this.care.save(tag);
         tag.put("Trust", this.mind.save());
+        tag.putBoolean("Female", this.isFemale());
+        tag.putBoolean("Mating", this.isMatingEnabled());
+        tag.putByte("FollowDistance", (byte) this.getFollowDistance().ordinal());
+        tag.putBoolean("AllowRiders", this.allowsOtherRiders());
+        tag.putByte("CareRequest", (byte) this.getCareRequest().ordinal());
+        this.nursery.save(tag);
         if (this.lairHome != null && this.lairEntrance != null) {
             tag.putLong("LairHome", this.lairHome.asLong());
             tag.putLong("LairEntrance", this.lairEntrance.asLong());
@@ -331,6 +350,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         }
         this.care.load(tag);
         this.mind.load(tag.getCompound("Trust"));
+        this.entityData.set(DATA_FEMALE, tag.getBoolean("Female"));
+        this.entityData.set(DATA_MATING, tag.getBoolean("Mating"));
+        this.entityData.set(DATA_FOLLOW, tag.contains("FollowDistance") ? tag.getByte("FollowDistance") : (byte) 1);
+        this.entityData.set(DATA_ALLOW_RIDERS, tag.getBoolean("AllowRiders"));
+        this.entityData.set(DATA_CARE, tag.getByte("CareRequest"));
+        this.nursery.load(tag);
+        this.entityData.set(DATA_MATURITY, this.nursery.maturity());
         if (tag.contains("LairHome")) {
             this.lairHome = BlockPos.of(tag.getLong("LairHome"));
             this.lairEntrance = BlockPos.of(tag.getLong("LairEntrance"));
@@ -350,12 +376,20 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.goalSelector.addGoal(4, new GorewidowWebPullGoal(this));
         this.goalSelector.addGoal(5, new GorewidowWebTraverseGoal(this));
         this.goalSelector.addGoal(6, new GorewidowMeleeGoal(this));
-        this.goalSelector.addGoal(7, new FollowOwnerGoal(this, 1.2, 12.0F, 4.0F) {
-            @Override
-            public boolean canUse() {
-                return GorewidowEntity.this.getCommand() == GorewidowCommand.FOLLOW && super.canUse();
-            }
-        });
+        for (GorewidowNursery.FollowDistance distance : GorewidowNursery.FollowDistance.values()) {
+            this.goalSelector.addGoal(7, new FollowOwnerGoal(this, 1.2, distance.start, distance.stop) {
+                @Override
+                public boolean canUse() {
+                    return GorewidowEntity.this.getCommand() == GorewidowCommand.FOLLOW
+                            && GorewidowEntity.this.getFollowDistance() == distance && super.canUse();
+                }
+
+                @Override
+                public boolean canContinueToUse() {
+                    return GorewidowEntity.this.getFollowDistance() == distance && super.canContinueToUse();
+                }
+            });
+        }
         this.goalSelector.addGoal(6, new com.vladosiwe.gorewidow.entity.ai.GorewidowLairGoal(this));
         this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowBondGoal(this));
         this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowOfferingGoal(this));
@@ -606,6 +640,73 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     public boolean isRiderSprinting() {
         return this.riderSprinting;
+    }
+
+    // ---- breeding, babies, ARK options
+    public GorewidowNursery getNursery() {
+        return this.nursery;
+    }
+
+    public boolean isFemale() {
+        return this.entityData.get(DATA_FEMALE);
+    }
+
+    public void setFemale(boolean female) {
+        this.entityData.set(DATA_FEMALE, female);
+    }
+
+    public boolean isMatingEnabled() {
+        return this.entityData.get(DATA_MATING);
+    }
+
+    public void setMatingEnabled(boolean mating) {
+        this.entityData.set(DATA_MATING, mating);
+    }
+
+    public GorewidowNursery.Care getCareRequest() {
+        return GorewidowNursery.Care.byId(this.entityData.get(DATA_CARE));
+    }
+
+    void setCareRequest(GorewidowNursery.Care care) {
+        this.entityData.set(DATA_CARE, (byte) care.ordinal());
+    }
+
+    public float getMaturity() {
+        return this.entityData.get(DATA_MATURITY);
+    }
+
+    void syncMaturity(float maturity) {
+        this.entityData.set(DATA_MATURITY, maturity);
+    }
+
+    public GorewidowNursery.FollowDistance getFollowDistance() {
+        return GorewidowNursery.FollowDistance.values()[Math.floorMod(this.entityData.get(DATA_FOLLOW), 3)];
+    }
+
+    public void setFollowDistance(GorewidowNursery.FollowDistance distance) {
+        this.entityData.set(DATA_FOLLOW, (byte) distance.ordinal());
+    }
+
+    public boolean allowsOtherRiders() {
+        return this.entityData.get(DATA_ALLOW_RIDERS);
+    }
+
+    public void setAllowOtherRiders(boolean allow) {
+        this.entityData.set(DATA_ALLOW_RIDERS, allow);
+    }
+
+    /** Babies grow from a third of adult size. */
+    @Override
+    public float getAgeScale() {
+        return this.isBaby() ? 0.35F + 0.65F * this.getMaturity() : 1.0F;
+    }
+
+    @Override
+    protected void ageBoundaryReached() {
+        super.ageBoundaryReached();
+        if (!this.level().isClientSide && !this.isBaby()) {
+            this.nursery.onGrownUp();
+        }
     }
 
     // ---- lair
@@ -859,7 +960,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         Vec3 fwd = this.getBodyForward();
         Vec3 side = fwd.cross(up);
         Vec3 origin = this.getBodyCenter().subtract(up.scale(this.getBbHeight() * 0.5));
-        return origin.add(side.scale(x / 16.0)).add(up.scale(y / 16.0)).add(fwd.scale(-z / 16.0));
+        double k = this.getAgeScale() / 16.0;
+        return origin.add(side.scale(x * k)).add(up.scale(y * k)).add(fwd.scale(-z * k));
     }
 
     public Vec3 getSpinneretPos() {
@@ -1242,6 +1344,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.tickMoodBaseline();
         this.tickRiderPassives();
         this.tickLairSchedule();
+        this.nursery.serverTick();
 
         WebMode mode = this.getWebMode();
         if (mode != WebMode.NONE && this.isDeadOrDying()) {
@@ -1513,7 +1616,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     // ================================================================== web actions (server)
     /** Fires a web line at a world point. Returns false if on cooldown or already busy. */
     public boolean shootWeb(Vec3 aimPoint, WebPurpose purpose) {
-        if (this.level().isClientSide || this.isDeadOrDying()) {
+        if (this.level().isClientSide || this.isDeadOrDying() || this.isBaby()) {
             return false;
         }
         if (this.getWebMode() != WebMode.NONE) {
@@ -1571,6 +1674,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.entityData.set(DATA_LINK_ID, target.getId());
         this.entityData.set(DATA_WEB_MODE, (byte) WebMode.TETHER.ordinal());
         this.tetherTicks = 0;
+        if (target.isPassenger() && !target.isPassengerOfSameVehicle(this)) {
+            // yanked out of the saddle
+            target.stopRiding();
+            if (target instanceof Player player) {
+                player.displayClientMessage(Component.translatable("message.gorewidow.pulled_off"), true);
+            }
+        }
         target.addEffect(new MobEffectInstance(ModEffects.WEBBED, 100, 0), this);
         this.playSound(ModSounds.WEB_HIT.get(), 1.0F, 1.2F);
         if (this.getTarget() == null && !(this.getControllingPassenger() instanceof Player) && this.canAttack(target)) {
@@ -1866,11 +1976,18 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         }
 
         if (!this.isOwnedBy(player)) {
+            if (this.allowsOtherRiders() && stack.isEmpty() && !player.isSecondaryUseActive()) {
+                if (!client) {
+                    this.tryMount(player);
+                }
+                return InteractionResult.sidedSuccess(client);
+            }
             return InteractionResult.PASS;
         }
 
         if ((stack.is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD) || stack.is(Tags.Items.FOODS_RAW_MEAT))
-                && (this.getHealth() < this.getMaxHealth() || this.getFood() < this.getMaxFood() - 5)) {
+                && (this.getHealth() < this.getMaxHealth() || this.getFood() < this.getMaxFood() - 5
+                || this.getCareRequest() == GorewidowNursery.Care.FEED)) {
             if (!client) {
                 this.care.feedFromHand(player, stack);
             }
@@ -1909,7 +2026,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** Mounts the owner if the Gorewidow wears a harness; explains why not otherwise. */
     public boolean tryMount(Player player) {
-        if (!this.isTame() || !this.isOwnedBy(player)) {
+        if (!this.isTame() || !(this.isOwnedBy(player) || this.allowsOtherRiders())) {
+            return false;
+        }
+        if (this.isBaby()) {
+            player.displayClientMessage(Component.translatable("message.gorewidow.too_young"), true);
             return false;
         }
         if (this.isVehicle()) {
@@ -1964,7 +2085,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                                                                    @Nullable net.minecraft.world.entity.SpawnGroupData data) {
         this.stats.rollWild(this.random);
         this.care.applyStats(true);
-        return super.finalizeSpawn(level, difficulty, spawnType, data);
+        this.setFemale(this.random.nextBoolean());
+        net.minecraft.world.entity.SpawnGroupData result = super.finalizeSpawn(level, difficulty, spawnType, data);
+        this.setAge(0);
+        return result;
     }
 
     @Override
@@ -1979,7 +2103,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     @Nullable
     @Override
     public LivingEntity getControllingPassenger() {
-        if (this.isTame() && this.mountAnim <= 0 && this.getFirstPassenger() instanceof Player player && this.isOwnedBy(player)) {
+        if (this.isTame() && this.mountAnim <= 0 && this.getFirstPassenger() instanceof Player player
+                && (this.isOwnedBy(player) || this.allowsOtherRiders())) {
             return player;
         }
         return null;

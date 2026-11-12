@@ -54,6 +54,8 @@ public final class GorewidowRig {
     /** World-space model origin for the current frame. */
     private Vec3 origin = Vec3.ZERO;
     private Vec3 lastTickPos = Vec3.ZERO;
+    /** Model scale (babies are smaller). */
+    private float scale = 1.0F;
 
     // ---------------------------------------------------------------- gait
     private final Vec3[] planted = new Vec3[LEGS];
@@ -120,7 +122,8 @@ public final class GorewidowRig {
         this.orientation.normalize();
         this.orientation.transform(new Vector3f(0, 1, 0), this.up);
 
-        float targetOffset = roped ? GorewidowAnatomy.BODY_HEIGHT * PX : widow.getBbHeight() * 0.5F;
+        this.scale = widow.getAgeScale();
+        float targetOffset = roped ? GorewidowAnatomy.BODY_HEIGHT * PX * this.scale : widow.getBbHeight() * 0.5F;
         this.originOffset += (targetOffset - this.originOffset) * (1.0F - (float) Math.exp(-8.0F * dt));
 
         Vec3 lerped = widow.getPosition(partialTick);
@@ -147,15 +150,21 @@ public final class GorewidowRig {
     }
 
     /** World-space position of a point given in internal model pixels. */
+    public float scale() {
+        return this.scale;
+    }
+
     public Vec3 modelToWorld(float x, float y, float z) {
-        Vector3f v = this.orientation.transform(new Vector3f(x * PX, y * PX, z * PX));
+        float k = PX * this.scale;
+        Vector3f v = this.orientation.transform(new Vector3f(x * k, y * k, z * k));
         return this.origin.add(v.x, v.y, v.z);
     }
 
     private Vec3 worldToModelPx(Vec3 world) {
         Vector3f v = new Vector3f((float) (world.x - this.origin.x), (float) (world.y - this.origin.y), (float) (world.z - this.origin.z));
         new Quaternionf(this.orientation).conjugate().transform(v);
-        return new Vec3(v.x / PX, v.y / PX, v.z / PX);
+        float k = PX * this.scale;
+        return new Vec3(v.x / k, v.y / k, v.z / k);
     }
 
     private static Quaternionf basis(Vec3 fwd, Vec3 up) {

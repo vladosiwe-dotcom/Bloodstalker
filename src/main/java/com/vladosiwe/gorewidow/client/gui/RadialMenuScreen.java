@@ -18,7 +18,7 @@ import java.util.List;
 public class RadialMenuScreen extends Screen {
     private record Option(Action action, Component label, boolean current) {}
 
-    private static final int RADIUS = 92;
+    private static final int RADIUS = 108;
     private final GorewidowEntity widow;
     private final List<Option> options = new ArrayList<>();
     private int hovered = -1;
@@ -41,7 +41,13 @@ public class RadialMenuScreen extends Screen {
         this.options.add(new Option(Action.AGGRESSIVE, AggressionMode.AGGRESSIVE.label(), mode == AggressionMode.AGGRESSIVE));
         this.options.add(new Option(Action.NEUTRAL, AggressionMode.NEUTRAL.label(), mode == AggressionMode.NEUTRAL));
         this.options.add(new Option(Action.PASSIVE, AggressionMode.PASSIVE.label(), mode == AggressionMode.PASSIVE));
-        this.options.add(new Option(Action.PET, Component.translatable("gui.gorewidow.pet"), false));
+        boolean cuddle = this.widow.getCareRequest() == com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.CUDDLE;
+        this.options.add(new Option(Action.PET, Component.translatable(cuddle ? "gui.gorewidow.cuddle" : "gui.gorewidow.pet"), cuddle));
+        if (!this.widow.isBaby()) {
+            this.options.add(new Option(Action.TOGGLE_MATING, Component.translatable("gui.gorewidow.mating"), this.widow.isMatingEnabled()));
+        }
+        this.options.add(new Option(Action.FOLLOW_DISTANCE, Component.translatable("gui.gorewidow.follow_distance", this.widow.getFollowDistance().label()), false));
+        this.options.add(new Option(Action.TOGGLE_RIDERS, Component.translatable("gui.gorewidow.allow_riders"), this.widow.allowsOtherRiders()));
         if (this.widow.hasHarness()) {
             this.options.add(new Option(Action.DROP_HARNESS, Component.translatable("gui.gorewidow.unharness"), false));
         }
@@ -83,7 +89,7 @@ public class RadialMenuScreen extends Screen {
             float a = this.angleOf(i);
             int ox = cx + Math.round(Mth.cos(a) * RADIUS);
             int oy = cy + Math.round(Mth.sin(a) * RADIUS);
-            String text = (i + 1) % 10 + "  " + o.label().getString();
+            String text = (i < 10 ? (i + 1) % 10 + "  " : "") + o.label().getString();
             int w = this.font.width(text) + 12;
             int x0 = ox - w / 2;
             int y0 = oy - 9;

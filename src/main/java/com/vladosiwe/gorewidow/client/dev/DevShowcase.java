@@ -98,6 +98,10 @@ public final class DevShowcase {
             SCENES.clear();
             defineUiScenes();
         }
+        if (Boolean.getBoolean("gorewidow.showcase.family")) {
+            SCENES.clear();
+            defineFamilyScenes();
+        }
         if (Boolean.getBoolean("gorewidow.showcase.ride")) {
             SCENES.clear();
             defineRideScenes();
@@ -245,6 +249,55 @@ public final class DevShowcase {
             c.first().setRiderGliding(true);
             c.first().setDeltaMovement(c.first().getDeltaMovement().multiply(1, 0, 1).add(0, -0.1, 0));
         }, new Vec3(-6, 7, -6), new Vec3(0, 9, 0), false));
+    }
+
+    private static void defineFamilyScenes() {
+        SCENES.add(new Scene("ui_family_eggs", 40, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            GorewidowEntity mother = c.widow(-6, 0, 6, 0);
+            GorewidowEntity father = c.widow(6, 0, 6, 0);
+            mother.tame(c.player);
+            father.tame(c.player);
+            net.minecraft.world.item.ItemStack egg = com.vladosiwe.gorewidow.item.GorewidowEggItem.create(mother, father);
+            mother.discard();
+            father.discard();
+            c.fill(-1, 0, 3, -1, 0, 3, Blocks.CAMPFIRE.defaultBlockState());
+            for (int i = 0; i < 2; i++) {
+                com.vladosiwe.gorewidow.entity.GorewidowEggEntity e = new com.vladosiwe.gorewidow.entity.GorewidowEggEntity(
+                        com.vladosiwe.gorewidow.registry.ModEntities.EGG.get(), c.level);
+                e.setEggData(com.vladosiwe.gorewidow.item.GorewidowEggItem.data(egg));
+                Vec3 p = c.at(i == 0 ? 0.2 : 1.1, 0, 2.6 + i * 0.7);
+                e.moveTo(p.x, p.y, p.z, 0, 0);
+                c.level.addFreshEntity(e);
+            }
+        }, c -> {}, new Vec3(1.8, 1.3, 0.6), new Vec3(0.3, 0.2, 3.0), false));
+        SCENES.add(new Scene("mind_family_baby", 30, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            GorewidowEntity baby = c.widow(0, 0, 3, 200);
+            baby.tame(c.player);
+            baby.setFemale(true);
+            baby.getStats().addWildPoints(9, baby.getRandom());
+            baby.getNursery().setupNewborn();
+            baby.setAge(-com.vladosiwe.gorewidow.entity.GorewidowNursery.MATURATION_TICKS / 3);
+            baby.getNursery().forceNextRequest(com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.CUDDLE);
+            baby.getStats().setImprint(0.375F);
+            baby.getCare().applyStats(true);
+            baby.setCustomName(net.minecraft.network.chat.Component.literal("Ink"));
+            uiEntityId = baby.getId();
+            GorewidowEntity mom = c.widow(-3.5, 0, 6.5, 160);
+            mom.tame(c.player);
+            mom.setFemale(true);
+        }, c -> {}, new Vec3(1.5, 1.6, 0), new Vec3(-0.5, 0.4, 3), false));
+        SCENES.add(new Scene("ui_family_wheel", 30, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            c.player.setShiftKeyDown(false);
+            GorewidowEntity w = c.widow(0, 0, 0, 180);
+            w.tame(c.player);
+            w.setFemale(true);
+            w.setMatingEnabled(true);
+            w.setCustomName(net.minecraft.network.chat.Component.literal("Velvet"));
+            uiEntityId = w.getId();
+        }, c -> {}, new Vec3(0, 1.6, 3.2), new Vec3(0, 0.9, 0), false));
     }
 
     private static void defineMindScenes() {
@@ -473,10 +526,10 @@ public final class DevShowcase {
             server.execute(() -> scene.perTick().accept(ctx));
         }
         mc.options.hideGui = !scene.name().startsWith("ui_") && !scene.name().startsWith("mind_");
-        if (scene.name().equals("ui_wheel") && ticks == 12 && mc.level.getEntity(uiEntityId) instanceof GorewidowEntity w) {
+        if ((scene.name().equals("ui_wheel") || scene.name().equals("ui_family_wheel")) && ticks == 12 && mc.level.getEntity(uiEntityId) instanceof GorewidowEntity w) {
             mc.setScreen(new com.vladosiwe.gorewidow.client.gui.RadialMenuScreen(w));
         }
-        if (ticks == scene.settleTicks() - 2 && mc.screen != null && scene.name().equals("ui_wheel")) {
+        if (ticks == scene.settleTicks() - 2 && mc.screen != null && scene.name().endsWith("wheel")) {
             // park the pointer over an option so the hover highlight shows
             org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), mc.getWindow().getScreenWidth() / 2.0 + 120, mc.getWindow().getScreenHeight() / 2.0 - 60);
         }

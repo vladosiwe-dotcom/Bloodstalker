@@ -95,7 +95,20 @@ public final class ModNetwork {
             case AGGRESSIVE -> aggression(player, widow, AggressionMode.AGGRESSIVE);
             case NEUTRAL -> aggression(player, widow, AggressionMode.NEUTRAL);
             case PASSIVE -> aggression(player, widow, AggressionMode.PASSIVE);
+            case TOGGLE_MATING -> {
+                widow.setMatingEnabled(!widow.isMatingEnabled());
+                player.displayClientMessage(Component.translatable(widow.isMatingEnabled() ? "message.gorewidow.mating_on" : "message.gorewidow.mating_off"), true);
+            }
+            case FOLLOW_DISTANCE -> {
+                widow.setFollowDistance(widow.getFollowDistance().next());
+                player.displayClientMessage(Component.translatable("message.gorewidow.follow_distance", widow.getFollowDistance().label()), true);
+            }
+            case TOGGLE_RIDERS -> {
+                widow.setAllowOtherRiders(!widow.allowsOtherRiders());
+                player.displayClientMessage(Component.translatable(widow.allowsOtherRiders() ? "message.gorewidow.riders_on" : "message.gorewidow.riders_off"), true);
+            }
             case PET -> {
+                widow.getNursery().onCuddle(player);
                 widow.getMind().onPet(player);
                 widow.playSound(ModSounds.PURR.get(), 1.0F, 0.9F + widow.getRandom().nextFloat() * 0.2F);
                 widow.triggerAnim("action", "tame");

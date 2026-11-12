@@ -195,12 +195,81 @@ for y, x in ((10, 3), (10, 12), (6, 7), (6, 8)):
     harness[y + 1, x] = (150, 150, 160, 255)
 save(Image.fromarray(harness, "RGBA"), A, "textures/item/gorewidow_harness.png")
 
+# ------------------------------------------------------------------ egg (entity texture + item icon)
+egg = rgba(16, 32)
+for y in range(32):
+    for x in range(16):
+        n = rng.random()
+        base = (196, 172, 150) if y > 3 else (176, 150, 130)
+        shade = 0.82 + 0.18 * n - 0.15 * (y / 31)
+        col = tuple(int(c * shade) for c in base)
+        vein = ((x * 3 + y * 2 + int(3 * math.sin(y * 0.6))) % 11 == 0) or ((x + y * 3) % 17 == 0 and y > 6)
+        if vein:
+            col = (150, 30, 38)
+        if n > 0.96:
+            col = (110, 70, 60)
+        egg[y, x] = (*col, 255)
+save(Image.fromarray(egg, "RGBA"), A, "textures/entity/gorewidow_egg.png")
+icon = rgba(16, 16)
+for y in range(16):
+    for x in range(16):
+        d = math.hypot((x - 7.5) / 5.0, (y - 8.5) / 6.8)
+        if d < 1.0:
+            shade = 1.0 - 0.35 * d - (0.12 if x > 9 else 0)
+            col = (int(205 * shade), int(180 * shade), int(158 * shade))
+            if (x * 3 + y * 2) % 9 == 0 and d < 0.85:
+                col = (150, 30, 38)
+            if d > 0.88:
+                col = (90, 64, 52)
+            icon[y, x] = (*col, 255)
+icon[5, 5] = icon[6, 5] = (240, 230, 214, 255)
+save(Image.fromarray(icon, "RGBA"), A, "textures/item/gorewidow_egg.png")
+write_json({"parent": "minecraft:item/generated", "textures": {"layer0": "gorewidow:item/gorewidow_egg"}}, A, "models/item/gorewidow_egg.json")
+
 write_json({"parent": "minecraft:item/generated", "textures": {"layer0": "gorewidow:item/blood_vial"}}, A, "models/item/blood_vial.json")
 write_json({"parent": "minecraft:item/generated", "textures": {"layer0": "gorewidow:item/gorewidow_harness"}}, A, "models/item/gorewidow_harness.json")
 write_json({"parent": "minecraft:item/template_spawn_egg"}, A, "models/item/gorewidow_spawn_egg.json")
 
 # ------------------------------------------------------------------ language
 en = {
+    "entity.gorewidow.gorewidow_egg": "Gorewidow Egg",
+    "item.gorewidow.gorewidow_egg": "Fertilized Gorewidow Egg",
+    "item.gorewidow.gorewidow_egg.parents": "Mother: %s, father: %s",
+    "item.gorewidow.gorewidow_egg.level": "Level %s, mutations %s, generation %s",
+    "item.gorewidow.gorewidow_egg.progress": "Incubated: %s%%",
+    "item.gorewidow.gorewidow_egg.tooltip": "Place it within 3 blocks of a campfire, fire, lava, magma, torch or lantern to incubate.",
+    "message.gorewidow.egg_laid": "%s laid a fertilized egg!",
+    "message.gorewidow.egg_warm": "Egg: warm, incubating %s%% (health %s)",
+    "message.gorewidow.egg_cold": "Egg: COLD, it will die (incubated %s%%, health %s). Put a heat source nearby.",
+    "message.gorewidow.hatched": "A Gorewidow hatched! Level %s. Care for it as it grows to imprint it.",
+    "message.gorewidow.care_request": "%s wants: %s",
+    "message.gorewidow.not_imprinter": "Only its imprinter can do that.",
+    "message.gorewidow.imprinted": "Imprinting: %s%%",
+    "message.gorewidow.grown_up": "%s is fully grown! Imprint %s%%.",
+    "message.gorewidow.too_young": "It is too young to ride.",
+    "message.gorewidow.pulled_off": "A web yanks you off your mount!",
+    "message.gorewidow.mating_on": "Mating: allowed",
+    "message.gorewidow.mating_off": "Mating: off",
+    "message.gorewidow.follow_distance": "Follow distance: %s",
+    "message.gorewidow.riders_on": "Others may ride it",
+    "message.gorewidow.riders_off": "Only you may ride it",
+    "care.gorewidow.none": "Nothing",
+    "care.gorewidow.cuddle": "a cuddle",
+    "care.gorewidow.feed": "food from your hand",
+    "care.gorewidow.walk": "a walk with you",
+    "follow.gorewidow.near": "near",
+    "follow.gorewidow.medium": "medium",
+    "follow.gorewidow.far": "far",
+    "gui.gorewidow.cuddle": "Cuddle!",
+    "gui.gorewidow.mating": "Mating",
+    "gui.gorewidow.follow_distance": "Distance: %s",
+    "gui.gorewidow.allow_riders": "Others ride",
+    "gui.gorewidow.female": "Female",
+    "gui.gorewidow.male": "Male",
+    "gui.gorewidow.lineage": "%s  ·  Gen %s  ·  Mut %s",
+    "gui.gorewidow.baby": "Baby %s%%  ·  Imprint %s%%",
+    "gui.gorewidow.wants": "Wants %s (%s)",
+    "gui.gorewidow.imprint": "Imprint %s%%",
     "key.gorewidow.slingshot": "Web slingshot",
     "key.gorewidow.vision": "Toggle spider vision",
     "message.gorewidow.vision_on": "Spider vision: on",
@@ -314,6 +383,44 @@ en = {
     "subtitles.gorewidow.web_strain": "Web strains",
 }
 ru = {
+    "entity.gorewidow.gorewidow_egg": "Яйцо Кровавой вдовы",
+    "item.gorewidow.gorewidow_egg": "Оплодотворённое яйцо Кровавой вдовы",
+    "item.gorewidow.gorewidow_egg.parents": "Мать: %s, отец: %s",
+    "item.gorewidow.gorewidow_egg.level": "Уровень %s, мутаций %s, поколение %s",
+    "item.gorewidow.gorewidow_egg.progress": "Инкубация: %s%%",
+    "item.gorewidow.gorewidow_egg.tooltip": "Положите в пределах 3 блоков от костра, огня, лавы, магмы, факела или фонаря.",
+    "message.gorewidow.egg_laid": "%s отложила оплодотворённое яйцо!",
+    "message.gorewidow.egg_warm": "Яйцо: тепло, инкубация %s%% (здоровье %s)",
+    "message.gorewidow.egg_cold": "Яйцо: ХОЛОДНО, оно погибнет (инкубация %s%%, здоровье %s). Поставьте рядом источник тепла.",
+    "message.gorewidow.hatched": "Вылупилась Кровавая вдова! Уровень %s. Ухаживайте за ней, пока растёт, чтобы импринтировать.",
+    "message.gorewidow.care_request": "%s хочет: %s",
+    "message.gorewidow.not_imprinter": "Это может сделать только её импринтер.",
+    "message.gorewidow.imprinted": "Импринт: %s%%",
+    "message.gorewidow.grown_up": "%s выросла! Импринт %s%%.",
+    "message.gorewidow.too_young": "Она ещё слишком мала, чтобы на ней ездить.",
+    "message.gorewidow.pulled_off": "Паутина сдёрнула вас с маунта!",
+    "message.gorewidow.mating_on": "Спаривание: разрешено",
+    "message.gorewidow.mating_off": "Спаривание: выключено",
+    "message.gorewidow.follow_distance": "Дистанция следования: %s",
+    "message.gorewidow.riders_on": "На ней могут ездить другие",
+    "message.gorewidow.riders_off": "Ездить можете только вы",
+    "care.gorewidow.none": "Ничего",
+    "care.gorewidow.cuddle": "ласки",
+    "care.gorewidow.feed": "еды из ваших рук",
+    "care.gorewidow.walk": "прогулки с вами",
+    "follow.gorewidow.near": "близко",
+    "follow.gorewidow.medium": "средне",
+    "follow.gorewidow.far": "далеко",
+    "gui.gorewidow.cuddle": "Приласкать!",
+    "gui.gorewidow.mating": "Спаривание",
+    "gui.gorewidow.follow_distance": "Дистанция: %s",
+    "gui.gorewidow.allow_riders": "Ездят другие",
+    "gui.gorewidow.female": "Самка",
+    "gui.gorewidow.male": "Самец",
+    "gui.gorewidow.lineage": "%s  ·  Пок. %s  ·  Мут. %s",
+    "gui.gorewidow.baby": "Детёныш %s%%  ·  Импринт %s%%",
+    "gui.gorewidow.wants": "Хочет %s (%s)",
+    "gui.gorewidow.imprint": "Импринт %s%%",
     "key.gorewidow.slingshot": "Рогатка из паутины",
     "key.gorewidow.vision": "Паучье зрение вкл/выкл",
     "message.gorewidow.vision_on": "Паучье зрение: вкл",

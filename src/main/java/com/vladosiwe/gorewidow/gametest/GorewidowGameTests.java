@@ -293,6 +293,97 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 800)
+    public static void tamedPairMatesAndLaysAnEgg(GameTestHelper helper) {
+        Player owner = helper.makeMockPlayer(GameType.SURVIVAL);
+        GorewidowEntity mother = spawnInert(helper, new Vec3(6, FLOOR, 8));
+        GorewidowEntity father = spawnInert(helper, new Vec3(10, FLOOR, 8));
+        mother.tame(owner);
+        father.tame(owner);
+        mother.setFemale(true);
+        father.setFemale(false);
+        mother.setMatingEnabled(true);
+        father.setMatingEnabled(true);
+        helper.succeedWhen(() -> {
+            java.util.List<net.minecraft.world.entity.item.ItemEntity> eggs = helper.getLevel().getEntitiesOfClass(
+                    net.minecraft.world.entity.item.ItemEntity.class, mother.getBoundingBox().inflate(6),
+                    e -> e.getItem().is(ModItems.EGG.get()));
+            helper.assertTrue(!eggs.isEmpty(), "no egg yet");
+            net.minecraft.nbt.CompoundTag data = com.vladosiwe.gorewidow.item.GorewidowEggItem.data(eggs.get(0).getItem());
+            helper.assertTrue(data.contains("Child") && owner.getUUID().equals(data.getUUID("Owner")), "egg has no child data / owner");
+            helper.assertTrue(mother.getNursery().mateCooldown() > 0, "mother has no mating cooldown");
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 120)
+    public static void eggsNeedWarmthAndHatchIntoATamedBaby(GameTestHelper helper) {
+        Player owner = helper.makeMockPlayer(GameType.SURVIVAL);
+        GorewidowEntity mother = spawnInert(helper, new Vec3(4, FLOOR, 4));
+        GorewidowEntity father = spawnInert(helper, new Vec3(12, FLOOR, 12));
+        mother.tame(owner);
+        father.tame(owner);
+        mother.getStats().addWildPoints(10, mother.getRandom());
+        ItemStack eggItem = com.vladosiwe.gorewidow.item.GorewidowEggItem.create(mother, father);
+        mother.discard();
+        father.discard();
+        helper.setBlock(new BlockPos(3, FLOOR, 8), Blocks.CAMPFIRE);
+        com.vladosiwe.gorewidow.entity.GorewidowEggEntity warm = new com.vladosiwe.gorewidow.entity.GorewidowEggEntity(ModEntities.EGG.get(), helper.getLevel());
+        warm.setEggData(com.vladosiwe.gorewidow.item.GorewidowEggItem.data(eggItem));
+        warm.moveTo(helper.absoluteVec(new Vec3(4.5, FLOOR, 8.5)));
+        helper.getLevel().addFreshEntity(warm);
+        com.vladosiwe.gorewidow.entity.GorewidowEggEntity cold = new com.vladosiwe.gorewidow.entity.GorewidowEggEntity(ModEntities.EGG.get(), helper.getLevel());
+        cold.setEggData(com.vladosiwe.gorewidow.item.GorewidowEggItem.data(eggItem));
+        cold.moveTo(helper.absoluteVec(new Vec3(13.5, FLOOR, 8.5)));
+        helper.getLevel().addFreshEntity(cold);
+        helper.runAfterDelay(65, () -> {
+            helper.assertTrue(warm.isWarm() && warm.getProgress() > 0, "warm egg is not incubating");
+            helper.assertTrue(!cold.isWarm() && cold.getProgress() == 0 && cold.getEggHealth() < 100, "cold egg is not suffering");
+            GorewidowEntity baby = warm.hatch();
+            helper.assertTrue(baby != null && baby.isBaby() && baby.isTame(), "hatchling is not a tamed baby");
+            helper.assertTrue(owner.getUUID().equals(baby.getOwnerUUID()), "hatchling has the wrong owner");
+            helper.assertTrue(baby.getStats().generation() == 1, "generation not counted");
+            helper.assertTrue(baby.getAgeScale() < 0.5F, "baby is not small");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60)
+    public static void answeringCareRequestsImprintsTheBaby(GameTestHelper helper) {
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        GorewidowEntity baby = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        baby.tame(player);
+        baby.getNursery().setupNewborn();
+        float health = baby.getMaxHealth();
+        helper.assertTrue(!baby.tryMount(player), "a baby could be ridden");
+        // force a cuddle request and answer it
+        for (int i = 0; i < 1300 && baby.getCareRequest() == com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.NONE; i++) {
+            baby.getNursery().forceNextRequest(com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.CUDDLE);
+        }
+        baby.getNursery().onCuddle(player);
+        helper.assertTrue(baby.getStats().imprint() > 0.12F, "imprint did not rise: " + baby.getStats().imprint());
+        helper.assertTrue(baby.getNursery().isImprinter(player), "player did not become the imprinter");
+        helper.assertTrue(baby.getMaxHealth() > health, "imprint gave no stat bonus");
+        player.discard();
+        helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60)
+    public static void webYanksARiderOffTheirMount(GameTestHelper helper) {
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        net.minecraft.world.entity.vehicle.Boat boat = helper.spawn(EntityType.BOAT, new Vec3(12, FLOOR, 8));
+        player.moveTo(boat.position());
+        player.startRiding(boat, true);
+        helper.assertTrue(player.isPassenger(), "player did not board");
+        GorewidowEntity widow = spawnInert(helper, new Vec3(3, FLOOR, 8));
+        widow.shootWeb(player.position().add(0, 1, 0), GorewidowEntity.WebPurpose.ATTACK);
+        widow.onWebTethered(player);
+        helper.assertTrue(!player.isPassenger(), "rider was not pulled off");
+        player.discard();
+        helper.succeed();
+    }
+
     @GameTest(template = "arena", timeoutTicks = 60)
     public static void levelsUpAndSpendsStatPoints(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));

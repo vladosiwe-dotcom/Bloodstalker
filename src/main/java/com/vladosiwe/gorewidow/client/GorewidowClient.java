@@ -76,6 +76,7 @@ public final class GorewidowClient {
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.GOREWIDOW.get(), GorewidowRenderer::new);
         event.registerEntityRenderer(ModEntities.WEB_SHOT.get(), WebShotRenderer::new);
+        event.registerEntityRenderer(ModEntities.EGG.get(), GorewidowEggRenderer::new);
     }
 
     private static void registerParticles(RegisterParticleProvidersEvent event) {

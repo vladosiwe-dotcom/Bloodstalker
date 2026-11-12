@@ -79,7 +79,7 @@ vials still needed and the bonus levels you would get.
 | Action | How |
 |---|---|
 | Ride | Use with an empty hand (no saddle needed) |
-| **Option wheel** | Sneak + use: Ride, Inventory, Follow / Stay / Wander, Aggressive / Neutral / Passive, Pet, Take harness (number keys work too) |
+| **Option wheel** | Sneak + use: Ride, Inventory, Follow / Stay / Wander, Aggressive / Neutral / Passive, Pet / Cuddle, Mating, Follow distance (near / medium / far), Allow others to ride, Take harness (number keys work too) |
 | Inventory and stats | From the wheel or the screen's buttons: harness slot, 15 cargo slots, name, level, XP and every stat with a **+** button for unspent points |
 | Feed / heal | Use a Blood Vial or raw meat on it. When hungry it also eats from its own cargo |
 | Whistles | **J** follow me, **K** stay, **H** attack what I am looking at. Applies to every owned Gorewidow within 40 blocks, or to the one under the crosshair |
@@ -96,6 +96,26 @@ vials still needed and the bonus levels you would get.
   barely move, cannot leap and cannot swing.
 - **Attitude.** Aggressive hunts nearby monsters and untamed animals (never players or your
   pets). Neutral defends itself and you. Passive never fights.
+
+## Breeding and imprinting (ARK-style)
+
+- **Sex and mating.** Every Gorewidow is male or female (shown on its panel). Turn **Mating** on
+  in the option wheel for a tamed female and a tamed male. Near each other they mate and she lays a
+  **Fertilized Gorewidow Egg**, then rests for 10 minutes before she can mate again.
+- **Inheritance and mutations.** The egg already holds the child. Each stat's points come from one
+  parent, the stronger one winning 55% of the time. Each parent's line may add a **mutation** (+2
+  points in a random stat, 2.5% chance, up to 20 per line). Generation and mutation counters are
+  tracked.
+- **Incubation.** Place the egg within 3 blocks of heat (a campfire, fire, lava, magma, a lit
+  furnace, a torch or a lantern). Warm, it incubates for 5 minutes. Cold, it loses health and dies.
+  Punch it to pick it up; it keeps its progress. Use it to check its temperature.
+- **Babies** hatch tamed to the parents' owner and grow over 40 minutes, from a third of adult size
+  to full size. They can't be ridden and don't use web attacks until grown.
+- **Imprinting.** While growing, the baby asks for **a cuddle** (wheel → Cuddle), **food from your
+  hand** or **a walk** (stay with it while it covers 30 blocks). Every request answered in time adds
+  12.5% imprint, and the first player to answer becomes its only imprinter. Imprint raises every
+  stat except speed by up to 20%. When its imprinter rides it, the mount deals up to 30% more damage
+  and takes up to 30% less.
 
 ## Riding (ARK-style)
 
@@ -117,7 +137,8 @@ takes 35% less damage and the mount carries 60 more weight.
 | Sprint key | Sprint (costs stamina) |
 | Shift | Dismount |
 
-Passives while riding, after ARK's Bloodstalker:
+Passives, after ARK's Bloodstalker:
+- **Yanks riders off their mounts.** A wild Gorewidow's web pulls a mounted player out of the saddle.
 - **Spider vision.** The rider gets night vision, and hostile creatures nearby (monsters, wild
   Gorewidows, anything targeting you) glow through walls.
 - **Feeds when wounded.** Below 40% health it drinks from the rider: a blood vial from the pack if
@@ -148,12 +169,13 @@ Passives while riding, after ARK's Bloodstalker:
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 15 game tests: clinging, climbing, swing physics, tethering,
-                              # slingshot, water walking, trust from offerings / hits, feeding-tame,
-                              # level-ups, cargo, mount sequence, riding underneath, rider drain
+./gradlew runGameTestServer   # 19 game tests: clinging, climbing, swing physics, tethering,
+                              # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
+                              # mount sequence, riding underneath, rider drain, mating and eggs,
+                              # incubation and hatching, imprinting, pulling riders off mounts
 ./gradlew runShowcase         # dev only: needs a world in run/saves/showcase; stages every
                               # state and saves screenshots to run/screenshots
-                              # (-Dgorewidow.showcase.ui / .mind / .ride / .lair = true)
+                              # (-Dgorewidow.showcase.ui / .mind / .ride / .family / .lair = true)
 ```
 
 Screenshots from the real game are in `docs/screenshots/`.

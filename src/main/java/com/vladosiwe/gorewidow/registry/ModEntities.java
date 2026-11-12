@@ -28,5 +28,11 @@ public final class ModEntities {
                     .noSave()
                     .build(Gorewidow.id("web_shot").toString()));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<com.vladosiwe.gorewidow.entity.GorewidowEggEntity>> EGG = ENTITY_TYPES.register("gorewidow_egg", () ->
+            EntityType.Builder.<com.vladosiwe.gorewidow.entity.GorewidowEggEntity>of(com.vladosiwe.gorewidow.entity.GorewidowEggEntity::new, MobCategory.MISC)
+                    .sized(0.5F, 0.6F)
+                    .clientTrackingRange(8)
+                    .build(Gorewidow.id("gorewidow_egg").toString()));
+
     private ModEntities() {}
 }

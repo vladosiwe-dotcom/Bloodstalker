@@ -30,6 +30,9 @@ public class GorewidowWebTraverseGoal extends Goal {
             this.cooldown--;
             return false;
         }
+        if (this.widow.isBaby()) {
+            return false;
+        }
         LivingEntity target = this.widow.getTarget();
         if (target == null || !target.isAlive() || this.widow.isVehicle() || this.widow.isDraining()
                 || this.widow.getWebMode() != WebMode.NONE || this.widow.getWebCooldown() > 0) {

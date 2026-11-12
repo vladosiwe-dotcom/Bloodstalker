@@ -78,6 +78,14 @@ public final class Gorewidow {
 
     /** A rider strapped under the belly is shielded from suffocation and fall damage of its mount's acrobatics. */
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        // imprint bonus: an imprinted Gorewidow ridden by its imprinter hits harder and takes less
+        if (event.getSource().getEntity() instanceof GorewidowEntity attacker
+                && attacker.getNursery().isImprinter(attacker.getControllingPassenger())) {
+            event.setAmount(event.getAmount() * (1.0F + attacker.getNursery().imprintBonus()));
+        }
+        if (event.getEntity() instanceof GorewidowEntity victim && victim.getNursery().isImprinter(victim.getControllingPassenger())) {
+            event.setAmount(event.getAmount() * (1.0F - victim.getNursery().imprintBonus()));
+        }
         if (event.getEntity().getVehicle() instanceof GorewidowEntity mount) {
             if (event.getSource().is(DamageTypes.IN_WALL) || event.getSource().is(DamageTypes.FALL)) {
                 event.setCanceled(true);
