@@ -212,17 +212,17 @@ public final class DevShowcase {
             w.tame(r);
             w.setHarness(true);
         }, c -> {
-            if (ticks == 4) {
+            if (ticks == 10) {
                 c.first().tryMount(rider);
             }
         }, new Vec3(-4.5, 1.6, -3.6), new Vec3(-1.0, 0.9, 0.2), false));
     }
 
     private static void defineRideScenes() {
-        mountScene("ride_mount_a", 4 + 9);
-        mountScene("ride_mount_b", 4 + 17);
-        mountScene("ride_mount_c", 4 + 40);
-        SCENES.add(new Scene("ride_held", 4 + 40, c -> {
+        mountScene("ride_mount_a", 10 + 9);
+        mountScene("ride_mount_b", 10 + 20);
+        mountScene("ride_mount_c", 10 + 44);
+        SCENES.add(new Scene("ride_held", 10 + 44, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 90);
             ServerPlayer r = makeRider(c.level);
             r.stopRiding();
@@ -231,11 +231,11 @@ public final class DevShowcase {
             w.tame(r);
             w.setHarness(true);
         }, c -> {
-            if (ticks == 4) {
+            if (ticks == 10) {
                 c.first().tryMount(rider);
             }
         }, new Vec3(0.4, 0.25, -2.4), new Vec3(0.2, 1.05, 0.3), false));
-        SCENES.add(new Scene("ride_stance", 4 + 40, c -> {
+        SCENES.add(new Scene("ride_stance", 10 + 50, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 90);
             ServerPlayer r = makeRider(c.level);
             r.stopRiding();
@@ -244,10 +244,10 @@ public final class DevShowcase {
             r.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
             w.tame(r);
         }, c -> {
-            if (ticks == 4) {
+            if (ticks == 10) {
                 c.first().tryMount(rider);
             }
-            if (ticks == 4 + GorewidowEntity.MOUNT_TICKS) {
+            if (ticks == 10 + GorewidowEntity.MOUNT_TICKS) {
                 c.first().setWeaponStance(true);
             }
         }, new Vec3(-1.5, 2.0, -6.5), new Vec3(-0.8, 1.6, 0), false));

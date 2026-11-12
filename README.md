@@ -7,9 +7,11 @@ ride it the way a climber rides a harness, strapped face-down **under** its bell
 The creature, its model, textures, animations and sounds are all original.
 
 **Look.** A small armoured body with a fan of hooked spines on its head, slung high (about two
-blocks up) between eight very long legs. Each leg rises in a tall bowed arch above the body and
-comes down almost vertically to a hooked claw. Crimson skin membranes, veined with faintly
-glowing blood, stretch inside every arch. A rider hangs in the open space under the body.
+blocks up) between eight very long, thick legs. Each leg rises in a tall bowed arch above the body,
+with pale bone caps at every joint, and comes down almost vertically to a long scythe claw that
+fades to a blood-red point. The hide is black, mottled with deep crimson and cracked with veins that
+glow. Glowing runes mark the swollen abdomen. Crimson skin membranes stretch inside every arch. A
+rider hangs in the open space under the body.
 
 - Minecraft 1.21.1, NeoForge 21.1.150+ (built against 21.1.266)
 - GeckoLib 4.9.x (required dependency)
@@ -129,9 +131,10 @@ when the cargo is nearly full.
 
 ## Riding (ARK-style)
 
-No saddle is needed. Use your tamed Gorewidow with an empty hand: it crouches, reaches out with its
-front legs and **hauls you in on silk threads**, swinging you from upright into a harness hold
-face-down under its belly. Two pairs of short **grasping arms** under its thorax then close
+No saddle is needed. Use your tamed Gorewidow with an empty hand and it mounts you in three beats:
+it crouches and **seizes you with its front legs** (silk threads lash on), then rises and **hauls
+you up under its belly**, and finally settles as its claspers lock on. You end up **hanging under
+the belly at an angle**, head up and forward, legs trailing behind. Two pairs of short **grasping arms** under its thorax then close
 around you: their hooked hands take you by the shoulders and the hips and keep hold (an IK solve
 every frame, so the grip stays put while it walks, climbs and swings). Out of the saddle they fold
 flat against the belly. You stay there on floors, walls, ceilings and in swings. When you

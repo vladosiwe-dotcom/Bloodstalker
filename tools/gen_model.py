@@ -195,7 +195,7 @@ LEGS = [
     (4, 4.8, -46.0, 30.0, 46.0, 44.0),
 ]
 COXA = 2.0
-TARSUS = 7.0
+TARSUS = 10.0
 TARSUS_ELEV = -80.0   # tarsus absolute elevation at rest (deg)
 HIP_X = 6.0
 ARCH = 0.07           # how far femur and tibia bow outward (fraction of their length)
@@ -275,7 +275,8 @@ for side, sname in ((1, "l"), (-1, "r")):
         ef, et_rel, es_rel = solve_leg(reach, HIP_Y, fl, tl)
         # file rotation z for this side: internal phi = c * elevation, file z == internal z
         bone(name + "_femur", name + "_coxa", fem_pivot, rotation=(0, 0, c * math.degrees(ef)))
-        arc_segments(name + "_femur", fem_pivot, sx, fl, 2.6, 1.0, ARCH * fl, "leg")
+        arc_segments(name + "_femur", fem_pivot, sx, fl, 3.4, 2.4, ARCH * fl, "leg")
+        cube(name + "_femur", (fem_pivot[0] - 1.9, fem_pivot[1] - 1.9, fem_pivot[2] - 1.9), (3.8, 3.8, 3.8), "cap")
         # armoured base of the femur
         x1 = fem_pivot[0] if sx > 0 else fem_pivot[0] - fl * 0.3
         cube(name + "_femur", (x1, fem_pivot[1] - 1.7, fem_pivot[2] - 1.7), (fl * 0.3, 3.4, 3.4), "carapace")
@@ -283,8 +284,8 @@ for side, sname in ((1, "l"), (-1, "r")):
         membrane(name + "_femur", fem_pivot, sx, fl, ARCH * fl, 0.4, 1.0, 2.0, 9.0, seed=idx * 7 + side)
         tib_pivot = (fem_pivot[0] + sx * fl, fem_pivot[1], fem_pivot[2])
         bone(name + "_tibia", name + "_femur", tib_pivot, rotation=(0, 0, c * math.degrees(et_rel)))
-        arc_segments(name + "_tibia", tib_pivot, sx, tl, 2.0, 0.75, ARCH * tl, "leg")
-        cube(name + "_tibia", (tib_pivot[0] - 1.7, tib_pivot[1] - 1.7, tib_pivot[2] - 1.7), (3.4, 3.4, 3.4), "joint")
+        arc_segments(name + "_tibia", tib_pivot, sx, tl, 2.7, 1.6, ARCH * tl, "leg")
+        cube(name + "_tibia", (tib_pivot[0] - 2.0, tib_pivot[1] - 2.0, tib_pivot[2] - 2.0), (4.0, 4.0, 4.0), "cap")
         # knee hook pointing up out of the arch
         cube(name + "_tibia", (tib_pivot[0] - 0.5, tib_pivot[1] + 1.2, tib_pivot[2] - 0.5), (1, 3.5, 1), "spike",
              rotation=(0, 0, -sx * 20), pivot=(tib_pivot[0], tib_pivot[1] + 1.2, tib_pivot[2]))
@@ -296,13 +297,15 @@ for side, sname in ((1, "l"), (-1, "r")):
              rotation=(0, 0, sx * 25), pivot=(xb + (0 if sx > 0 else 2.0), yb, tib_pivot[2]))
         tar_pivot = (tib_pivot[0] + sx * tl, tib_pivot[1], tib_pivot[2])
         bone(name + "_tarsus", name + "_tibia", tar_pivot, rotation=(0, 0, c * math.degrees(es_rel)))
-        xs = tar_pivot[0] if sx > 0 else tar_pivot[0] - TARSUS
-        cube(name + "_tarsus", (xs, tar_pivot[1] - 0.8, tar_pivot[2] - 0.8), (TARSUS, 1.6, 1.6), "leg")
-        # grasping claw: two curved hooks
-        xc = tar_pivot[0] + sx * (TARSUS - 0.4)
-        for dz in (-0.9, 0.9):
-            cube(name + "_tarsus", (xc - (0 if sx > 0 else 2.2), tar_pivot[1] - 0.5, tar_pivot[2] + dz - 0.4), (2.2, 0.9, 0.8), "fang",
-                 rotation=(0, -sx * dz * 25, -sx * 30), pivot=(xc, tar_pivot[1], tar_pivot[2] + dz))
+        cube(name + "_tarsus", (tar_pivot[0] - 1.2, tar_pivot[1] - 1.2, tar_pivot[2] - 1.2), (2.4, 2.4, 2.4), "cap")
+        # long scythe claw tapering to a blood-red point, hooked slightly at the end
+        for (u0, u1, th, mat) in ((0.0, 0.5, 1.7, "leg"), (0.5, 0.8, 1.2, "claw"), (0.8, 1.0, 0.7, "claw")):
+            x0 = tar_pivot[0] + sx * u0 * TARSUS
+            ln = (u1 - u0) * TARSUS + 0.3
+            ox = x0 if sx > 0 else x0 - ln
+            rot = None if u0 < 0.75 else (0, 0, -sx * -18)
+            cube(name + "_tarsus", (ox, tar_pivot[1] - th / 2, tar_pivot[2] - th / 2), (ln, th, th), mat,
+                 rotation=rot, pivot=(x0, tar_pivot[1], tar_pivot[2]) if rot else None)
         leg_records.append({
             "name": name, "side": side, "idx": idx, "hip": hip, "psi0": psi0,
             "femur": fl, "tibia": tl, "reach": reach, "angle": a,
@@ -360,22 +363,25 @@ for side, sname in ((1, "l"), (-1, "r")):
 # ---------------------------------------------------------------------------
 
 PALETTE = {
-    "carapace": ((36, 10, 13), (74, 20, 24)),
+    "carapace": ((22, 12, 14), (58, 22, 26)),
     "plate": ((22, 7, 9), (96, 26, 30)),
     "belly": ((70, 22, 26), (112, 34, 38)),
     "flesh": ((120, 30, 36), (170, 52, 58)),
-    "abdomen": ((30, 8, 11), (66, 16, 20)),
+    "abdomen": ((20, 10, 12), (56, 18, 22)),
     "vein": ((110, 10, 18), (190, 24, 34)),
-    "leg": ((26, 9, 11), (58, 18, 21)),
+    "leg": ((20, 11, 13), (56, 20, 24)),
     "joint": ((84, 18, 24), (128, 30, 36)),
     "spike": ((150, 128, 104), (60, 40, 34)),
     "fang": ((222, 210, 182), (58, 40, 30)),
     "eye": ((255, 40, 36), (120, 0, 6)),
     "mouth": ((40, 2, 6), (90, 10, 16)),
     "harness": ((78, 48, 26), (112, 72, 40)),
+    "cap": ((112, 104, 106), (196, 188, 186)),
+    "claw": ((120, 16, 24), (22, 8, 10)),
     "membrane": ((92, 12, 22), (150, 26, 36)),
     "buckle": ((150, 150, 158), (205, 205, 214)),
 }
+BLOT_SEED = (0.0, 0.0, 0.0)
 GLOW = {"eye": 255, "vein": 150, "membrane": 70}
 
 atlas = np.zeros((TEX_H, TEX_W, 4), dtype=np.uint8)
@@ -419,6 +425,32 @@ def paint_face(mat, face, w, h):
         for x in range(w):
             n = rng.random()
             t = 0.35 + 0.4 * n
+            if mat in ("carapace", "abdomen", "leg"):
+                # mottled hide: dark blotches of deep crimson, a few of them lit from within
+                blot = math.sin(x * 0.85 + BLOT_SEED[0]) * math.cos(y * 0.7 + BLOT_SEED[1]) + 0.45 * math.sin((x + y) * 0.45 + BLOT_SEED[2])
+                if blot > 0.95 and n > 0.25:
+                    col = lerp((130, 18, 26), (176, 28, 36), n)
+                    img[y, x] = (*col, 255)
+                    if blot > 1.2 and mat != "carapace":
+                        gm[y, x] = (210, 30, 40, 150)
+                    continue
+                if blot > 0.65 and n > 0.4:
+                    col = lerp((78, 16, 22), (104, 22, 28), n)
+                    img[y, x] = (*tuple(int(c * light) for c in col), 255)
+                    continue
+            if mat == "cap":
+                col = lerp(lo, hi, 0.4 + 0.5 * n if face != "down" else 0.2)
+                if n > 0.9:
+                    col = (90, 84, 86)
+                img[y, x] = (*tuple(int(c * (0.7 + 0.3 * light)) for c in col), 255)
+                continue
+            if mat == "claw":
+                t = x / max(1, w - 1) if face not in ("east", "west") else 0.5
+                col = lerp(lo, hi, t)
+                img[y, x] = (*tuple(int(c * (0.8 + 0.3 * n)) for c in col), 255)
+                if t < 0.25 and face != "down":
+                    gm[y, x] = (200, 24, 32, 110)
+                continue
             if mat in ("carapace", "plate", "abdomen", "leg", "joint"):
                 # rim highlight on the upper edge, darker toward the bottom
                 if face != "up" and face != "down":
@@ -430,14 +462,22 @@ def paint_face(mat, face, w, h):
                     cx = abs(x - (w - 1) / 2) / max(1, w / 2)
                     period = 7
                     if (y + int(cx * 6)) % period in (0, 1) and cx < 0.8:
-                        col = lerp((150, 18, 26), (205, 34, 40), n)
+                        col = lerp((200, 30, 38), (245, 60, 64), n)
                         img[y, x] = (*col, 255)
-                        if (y + int(cx * 6)) % period == 0:
-                            gm[y, x] = (200, 20, 30, 120)
+                        gm[y, x] = (235, 40, 48, 230)
                         continue
-                if mat == "abdomen" and face in ("east", "west"):
-                    if (x * 3 + y * 5) % 23 == 0:
-                        t = 1.2
+                if mat == "abdomen" and face in ("east", "west", "south"):
+                    # glowing runes: rows of short bars and V marks
+                    cell_w, cell_h = 8, 7
+                    gx, gy = x % cell_w, y % cell_h
+                    row = (y // cell_h) % 2
+                    mark = (row == 0 and gy in (2, 3) and 1 <= gx <= 5) or \
+                           (row == 1 and ((gx - 1 == gy - 1 and 1 <= gy <= 4) or (gx + gy == 8 and 1 <= gy <= 4)))
+                    if mark and 2 < y < h - 3 and 2 < x < w - 3:
+                        col = lerp((210, 34, 40), (250, 70, 72), n)
+                        img[y, x] = (*col, 255)
+                        gm[y, x] = (240, 44, 50, 235)
+                        continue
                 if mat == "leg":
                     # segment banding along the length (u axis on side faces)
                     if face in ("north", "south", "up", "down") and (x // 2) % 9 == 0:
@@ -513,6 +553,7 @@ for b in bones:
             fw = max(1, int(math.ceil(c["size"][wa] * DENSITY)))
             fh = max(1, int(math.ceil(c["size"][ha] * DENSITY)))
             x, y = packer.alloc(fw, fh)
+            BLOT_SEED = (rng.uniform(0, 6.3), rng.uniform(0, 6.3), rng.uniform(0, 6.3))
             img, gm = paint_face(mat, face, fw, fh)
             atlas[y:y + fh, x:x + fw] = img
             glow[y:y + fh, x:x + fw] = gm

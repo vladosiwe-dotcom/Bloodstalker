@@ -472,7 +472,8 @@ public final class GorewidowGameTests {
             helper.assertTrue(player.getVehicle() == widow, "player did not mount");
             helper.assertTrue(widow.getControllingPassenger() == player, "player does not control the mount");
             double eye = player.getEyeY();
-            double belly = widow.getBodyCenter().y;
+            // the body is slung high above the hitbox centre: the rider hangs under the modelled body
+            double belly = widow.modelToWorld(0, com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT, 0).y;
             helper.assertTrue(eye < belly, "rider eyes (" + eye + ") should be under the body centre (" + belly + ")");
             helper.assertTrue(eye > widow.getY(), "rider eyes should stay above the ground");
             player.stopRiding();

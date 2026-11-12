@@ -211,7 +211,26 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private int moodSetTick;
 
     // ------------------------------------------------------------------ riding sequence and abilities
-    public static final int MOUNT_TICKS = 26;
+    public static final int MOUNT_TICKS = 34;
+    /** Fraction of the mount sequence spent seizing the rider before lifting them. */
+    public static final float MOUNT_SEIZE = 0.35F;
+
+    /** Rider hanging angle above horizontal (radians) and chest anchor in model px. */
+    public static final float RIDER_TILT = (float) Math.toRadians(35);
+    public static final float[] RIDER_CHEST = {0, GorewidowAnatomy.BODY_HEIGHT - 14.0F, -2.0F};
+
+    public static float smooth(float t) {
+        return t * t * (3 - 2 * t);
+    }
+
+    /** 0..1 how far the rider has been lifted into the hanging pose (0 while still being seized). */
+    public float getMountLift(float partialTick) {
+        if (this.mountAnim <= 0 && this.getFirstPassenger() != null) {
+            return 1.0F;
+        }
+        float t = this.getMountProgress(partialTick);
+        return smooth(Mth.clamp((t - MOUNT_SEIZE) / 0.45F, 0, 1));
+    }
     public static final int DISMOUNT_TICKS = 12;
     public static final float SLINGSHOT_STAMINA = 25.0F;
     private int mountAnim;
@@ -2202,11 +2221,15 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         double eyeHeight = passenger.getEyeHeight();
         if (this.mountAnim > 0) {
             // being hauled in on silk: from where the rider stood, swung in under the belly
+            // 1) the front legs seize the rider and drag them in a little, 2) lift them up under
+            // the belly while the claspers take hold, 3) settle into the harness
             float t = this.getMountProgress(0.0F);
-            float e = t * t * (3 - 2 * t);
             Vec3 start = this.mountFrom.add(0, eyeHeight, 0);
-            Vec3 lifted = start.lerp(eye, e).add(0, Math.sin(Math.PI * e) * 0.5, 0);
-            move.accept(passenger, lifted.x, lifted.y - eyeHeight, lifted.z);
+            Vec3 grabbed = start.lerp(this.modelToWorld(0, 0, -24.0F).add(0, eyeHeight, 0), 0.35);
+            float seize = smooth(Mth.clamp(t / MOUNT_SEIZE, 0, 1));
+            float lift = smooth(Mth.clamp((t - MOUNT_SEIZE) / 0.45F, 0, 1));
+            Vec3 p = start.lerp(grabbed, seize).lerp(eye, lift).add(0, Math.sin(Math.PI * lift) * 0.35, 0);
+            move.accept(passenger, p.x, p.y - eyeHeight, p.z);
             return;
         }
         move.accept(passenger, eye.x, eye.y - eyeHeight, eye.z);
@@ -2214,7 +2237,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** Where the rider's eyes sit: under the thorax, between belly and surface. */
     public Vec3 getRiderEyePos() {
-        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 19.0F, -9.5F);
+        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 10.0F, -8.0F);
     }
 
     @Override

@@ -361,7 +361,7 @@ public final class GorewidowRig {
         float raiseTarget = !dead && (mode == WebMode.TETHER || "screech".equals(action) || "web_shoot".equals(action)) ? 1.0F
                 : "bite".equals(action) ? 0.75F : 0.0F;
         float gripTarget = !dead && (widow.isDraining() || widow.getTameFeeder() != null
-                || (widow.isMounting() && widow.getMountProgress(partial) < 0.85F)) ? 1.0F : 0.0F;
+                || (widow.isMounting() && widow.getMountProgress(partial) < 0.62F)) ? 1.0F : 0.0F;
         this.ikWeight += (this.ikTarget - this.ikWeight) * blend;
         this.curl += (curlTarget - this.curl) * blend * 0.7F;
         this.spread += (spreadTarget - this.spread) * blend;
@@ -430,6 +430,10 @@ public final class GorewidowRig {
         net.minecraft.world.entity.LivingEntity grabbed = widow.getDrainTarget();
         if (grabbed == null) {
             grabbed = widow.getTameFeeder();
+        }
+        if (grabbed == null && widow.isMounting() && widow.getMountProgress(partial) < 0.62F
+                && widow.getFirstPassenger() instanceof net.minecraft.world.entity.LivingEntity seized) {
+            grabbed = seized;  // the front legs seize the rider before lifting them in
         }
         net.minecraft.world.phys.AABB grabBox = grabbed != null
                 ? grabbed.getBoundingBox().move(grabbed.getPosition(partial).subtract(grabbed.position())) : null;
@@ -515,7 +519,7 @@ public final class GorewidowRig {
         float holdTarget = 0;
         if (widow.getFirstPassenger() != null) {
             float t = widow.getMountProgress(partial);
-            holdTarget = t * t * (3 - 2 * t) * (1 - widow.getStanceBlend(partial));
+            holdTarget = GorewidowEntity.smooth(Mth.clamp((t - 0.42F) / 0.4F, 0, 1)) * (1 - widow.getStanceBlend(partial));
         }
         this.claspHold += (holdTarget - this.claspHold) * 0.35F;
         for (int i = 0; i < GorewidowAnatomy.CLASP_NAMES.length; i++) {
@@ -533,12 +537,17 @@ public final class GorewidowRig {
             float[] fold = GorewidowAnatomy.CLASP_FOLD;
             float[] angles = {0, fold[0] + twitch, fold[1], fold[2]};
             if (this.claspHold > 0.01F) {
-                // same layout as the rider pose: lying face-down under the belly, feet 0.9 blocks back
+                // same layout as the rider pose: front pair at the shoulders, rear pair at the hips
                 boolean front = hip[2] < 0;
-                float bellyY = GorewidowAnatomy.BODY_HEIGHT - 15.0F;
-                float z = front ? -6.0F : 5.0F;
+                float hang = GorewidowEntity.RIDER_TILT;
+                float[] chest = GorewidowEntity.RIDER_CHEST;
+                float along = front ? 4.8F : -7.2F;
                 float squeeze = Mth.sin(time * 3 + i) * 0.25F;
-                Vector3f target = invBody.transformPosition(new Vector3f(Math.signum(hip[0]) * (5.2F + squeeze), bellyY - 0.8F, z));
+                float px = Math.signum(hip[0]) * ((front ? 5.2F : 4.6F) + squeeze);
+                // a little toward the rider's chest side, so the hooks close under them
+                float py = chest[1] + along * Mth.sin(hang) - 0.8F * Mth.cos(hang);
+                float pz = chest[2] - along * Mth.cos(hang) - 0.8F * Mth.sin(hang);
+                Vector3f target = invBody.transformPosition(new Vector3f(px, py, pz));
                 float[] hold = solveClasp(target.x - hip[0], target.y - hip[1], target.z - hip[2], c);
                 hold[0] = Mth.wrapDegrees((hold[0] - GorewidowAnatomy.CLASP_REST_YAW[i]) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
                 angles = mix(angles, hold, this.claspHold);

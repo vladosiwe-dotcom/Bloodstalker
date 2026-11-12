@@ -11,7 +11,7 @@ public final class GorewidowAnatomy {
     public static final float BODY_HEIGHT = 32.0f;
     public static final float HIP_HEIGHT = 31.5f;
     public static final float COXA = 2.0f;
-    public static final float TARSUS = 7.0f;
+    public static final float TARSUS = 10.0f;
     public static final float TARSUS_ELEVATION = (float) Math.toRadians(-80.0);
     public static final int LEG_COUNT = 8;
     public static final String[] LEG_NAMES = {"leg_l1", "leg_l2", "leg_l3", "leg_l4", "leg_r1", "leg_r2", "leg_r3", "leg_r4"};

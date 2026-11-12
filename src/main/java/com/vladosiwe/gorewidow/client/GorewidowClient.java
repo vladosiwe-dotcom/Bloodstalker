@@ -268,16 +268,21 @@ public final class GorewidowClient {
         float partial = event.getPartialTick();
         Vec3 up = rig.up();
         Vec3 fwd = rig.forward();
-        Vec3 belly = rig.modelToWorld(0, com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT - 15.0F, 2.0F);
-        Vec3 feet = belly.subtract(fwd.scale(0.9));
+        // hanging under the belly at an angle: head up and forward, chest toward the ground ahead,
+        // legs trailing back and down, held at the shoulders and hips by the claspers
+        float tilt = GorewidowEntity.RIDER_TILT;
+        Vec3 bodyAxis = fwd.scale(Mth.cos(tilt)).add(up.scale(Mth.sin(tilt)));
+        Vec3 chestDir = fwd.scale(Mth.sin(tilt)).subtract(up.scale(Mth.cos(tilt)));
+        float[] c = GorewidowEntity.RIDER_CHEST;
+        Vec3 chest = rig.modelToWorld(c[0], c[1], c[2]);
+        Vec3 feet = chest.subtract(bodyAxis.scale(1.1));
         Vec3 offset = feet.subtract(player.getPosition(partial));
 
         float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot) * Mth.DEG_TO_RAD;
         Vec3 facing = new Vec3(-Mth.sin(bodyYaw), 0, Mth.cos(bodyYaw));
-        Quaternionf rotation = rotationBetweenFrames(facing, new Vec3(0, 1, 0), up.reverse(), fwd);
-        // while being hauled in on silk the rider swings from upright to strapped-in
-        float t = mount.getMountProgress(partial);
-        float e = t * t * (3 - 2 * t);
+        Quaternionf rotation = rotationBetweenFrames(facing, new Vec3(0, 1, 0), chestDir, bodyAxis);
+        // seized upright first, then swung into the hanging pose as it is lifted
+        float e = mount.getMountLift(partial);
         float stance = mount.getStanceBlend(partial);
         e *= 1.0F - stance;
         if (e < 1.0F) {
