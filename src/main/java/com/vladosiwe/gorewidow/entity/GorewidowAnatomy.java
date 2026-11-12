@@ -8,25 +8,25 @@ package com.vladosiwe.gorewidow.entity;
 public final class GorewidowAnatomy {
     private GorewidowAnatomy() {}
 
-    public static final float BODY_HEIGHT = 20.0f;
-    public static final float HIP_HEIGHT = 19.5f;
+    public static final float BODY_HEIGHT = 32.0f;
+    public static final float HIP_HEIGHT = 31.5f;
     public static final float COXA = 2.0f;
-    public static final float TARSUS = 6.0f;
-    public static final float TARSUS_ELEVATION = (float) Math.toRadians(-72.0);
+    public static final float TARSUS = 7.0f;
+    public static final float TARSUS_ELEVATION = (float) Math.toRadians(-80.0);
     public static final int LEG_COUNT = 8;
     public static final String[] LEG_NAMES = {"leg_l1", "leg_l2", "leg_l3", "leg_l4", "leg_r1", "leg_r2", "leg_r3", "leg_r4"};
     /** -1 for left legs (chain along internal -X), +1 for right legs. */
     public static final int[] LEG_CHAIN_SIGN = {-1, -1, -1, -1, 1, 1, 1, 1};
     /** Gait group for the alternating tetrapod gait. */
     public static final int[] LEG_GROUP = {1, 0, 1, 0, 0, 1, 0, 1};
-    public static final float[][] HIP = {{-6.3f, 19.5f, -6.5f}, {-6.3f, 19.5f, -2.6f}, {-6.3f, 19.5f, 1.3f}, {-6.3f, 19.5f, 5.2f}, {6.3f, 19.5f, -6.5f}, {6.3f, 19.5f, -2.6f}, {6.3f, 19.5f, 1.3f}, {6.3f, 19.5f, 5.2f}};
-    public static final float[] REST_YAW = {-0.907571f, -0.349066f, 0.244346f, 0.767945f, 0.907571f, 0.349066f, -0.244346f, -0.767945f};
-    public static final float[] FEMUR = {20.0f, 19.0f, 19.0f, 21.0f, 20.0f, 19.0f, 19.0f, 21.0f};
-    public static final float[] TIBIA = {27.0f, 25.0f, 25.0f, 29.0f, 27.0f, 25.0f, 25.0f, 29.0f};
+    public static final float[][] HIP = {{-6.0f, 31.5f, -6.0f}, {-6.0f, 31.5f, -2.4f}, {-6.0f, 31.5f, 1.2f}, {-6.0f, 31.5f, 4.8f}, {6.0f, 31.5f, -6.0f}, {6.0f, 31.5f, -2.4f}, {6.0f, 31.5f, 1.2f}, {6.0f, 31.5f, 4.8f}};
+    public static final float[] REST_YAW = {-0.942478f, -0.383972f, 0.244346f, 0.802851f, 0.942478f, 0.383972f, -0.244346f, -0.802851f};
+    public static final float[] FEMUR = {30.0f, 28.0f, 28.0f, 30.0f, 30.0f, 28.0f, 28.0f, 30.0f};
+    public static final float[] TIBIA = {46.0f, 42.0f, 42.0f, 46.0f, 46.0f, 42.0f, 42.0f, 46.0f};
     /** Rest foot positions on the surface plane (y = 0). */
-    public static final float[][] REST_FOOT = {{-28.4638f, 0f, -34.8684f}, {-34.4908f, 0f, -12.8606f}, {-35.4089f, 0f, 8.5577f}, {-32.9156f, 0f, 30.9024f}, {28.4638f, 0f, -34.8684f}, {34.4908f, 0f, -12.8606f}, {35.4089f, 0f, 8.5577f}, {32.9156f, 0f, 30.9024f}};
+    public static final float[][] REST_FOOT = {{-31.8626f, 0f, -41.5967f}, {-41.2330f, 0f, -16.6351f}, {-42.8712f, 0f, 10.3930f}, {-36.5650f, 0f, 36.4510f}, {31.8626f, 0f, -41.5967f}, {41.2330f, 0f, -16.6351f}, {42.8712f, 0f, 10.3930f}, {36.5650f, 0f, 36.4510f}};
     /** Spinneret tip (web origin) at rest. */
-    public static final float[] SPINNERET = {0f, 20.0f, 40.25f};
+    public static final float[] SPINNERET = {0f, 32.0f, 38.725f};
     /** Mouth / fang position at rest. */
-    public static final float[] MOUTH = {0f, 13.500f, -18.850f};
+    public static final float[] MOUTH = {0f, 25.750f, -18.125f};
 }

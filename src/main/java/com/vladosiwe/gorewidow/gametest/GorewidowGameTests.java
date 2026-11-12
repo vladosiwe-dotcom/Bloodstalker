@@ -47,7 +47,7 @@ public final class GorewidowGameTests {
                 helper.setBlock(new BlockPos(x, FLOOR + 5, z), Blocks.STONE);
             }
         }
-        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 5 - 1.8, 8));
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 5 - 2.4, 8));
         widow.setSurface(Direction.UP);
         double startY = widow.getY();
         helper.runAfterDelay(40, () -> {

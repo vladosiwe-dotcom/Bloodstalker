@@ -6,6 +6,11 @@ ride it the way a climber rides a harness, strapped face-down **under** its bell
 
 The creature, its model, textures, animations and sounds are all original.
 
+**Look.** A small armoured body with a fan of hooked spines on its head, slung high (about two
+blocks up) between eight very long legs. Each leg rises in a tall bowed arch above the body and
+comes down almost vertically to a hooked claw. Crimson skin membranes, veined with faintly
+glowing blood, stretch inside every arch. A rider hangs in the open space under the body.
+
 - Minecraft 1.21.1, NeoForge 21.1.150+ (built against 21.1.266)
 - GeckoLib 4.9.x (required dependency)
 
@@ -22,7 +27,9 @@ spiders do:
 - **Web swing.** It crosses long gaps and climbs to high targets by firing a line at a high anchor,
   pumping the swing and letting go at the top of the arc.
 - **Wall and ceiling crawling.** It climbs walls, crosses ceilings and wraps around edges.
-- **Blood drain.** It latches onto webbed or weakened prey, drinks from it and heals itself.
+- **Blood drain.** It lunges, clamps its fangs in, and wraps its front legs around the prey.
+  Anything up to player size is lifted off the ground and held against its mouth while it drinks
+  and heals itself.
 
 ## Mind: trust and mood
 
@@ -71,8 +78,11 @@ stamina, food, carry weight and melee damage.
    tamed. On completion it gains `wild level × 0.5 × effectiveness` bonus levels.
 5. If you hit it yourself while taming it, you lose 30% of the progress and it attacks you.
 
-The HUD over a looked-at Gorewidow shows its level, health, taming progress, effectiveness, the
-vials still needed and the bonus levels you would get.
+The HUD is a small panel at the top of the screen. For the Gorewidow under the crosshair it shows
+the name, sex and level, a health bar, and one line with what matters right now: taming progress
+and effectiveness, a baby's growth and imprint or what it wants, or otherwise its trust and mood.
+While riding, three slim bars in the corner show health, stamina and food. A weight bar appears
+when the cargo is nearly full.
 
 ## A tamed Gorewidow
 
@@ -134,7 +144,7 @@ takes 35% less damage and the mount carries 60 more weight.
 | Z / X | Reel the line in / pay it out |
 | G | Bite what you look at. Biting a webbed or wounded target starts a blood drain that heals the mount |
 | V | Toggle **spider vision** |
-| B | **Weapon stance**: it rears up on its hind legs and holds you up and out in front, cradled in its front legs, so you can shoot, fight and use any item. Turns on by itself when you hold a bow, crossbow or trident, or anything in the `gorewidow:mounted_weapons` tag (for modded guns or staves). It moves at half speed, its web, bite and slingshot are put away, and your projectiles fly past it |
+| B | **Weapon stance**: it rears up almost vertically on its hind legs and holds you high up and out in front, cradled in its front legs, so you can shoot, fight and use any item. Turns on by itself when you hold a bow, crossbow or trident, or anything in the `gorewidow:mounted_weapons` tag (for modded guns or staves). It moves at half speed, its web, bite and slingshot are put away, and your projectiles fly past it |
 | Sprint key | Sprint (costs stamina) |
 | Shift | Dismount |
 
@@ -160,10 +170,12 @@ Passives, after ARK's Bloodstalker:
   two-bone with a near-vertical tarsus) reaches the planted foot, and the body pitches, rolls and
   rises with the terrain. Curl, spread, raise and grip poses blend in during jumps, swings,
   attacks, feeding and death.
-- **Keyframe animations** (GeckoLib, 21 clips) drive the body, head, fangs, palps, abdomen and
+- **Keyframe animations** (GeckoLib, 24 clips, incl. the grab lunge) drive the body, head, fangs, palps, abdomen and
   spinneret, with a state-machine controller plus triggered one-shots.
 - **Web lines** render as crossed silk ribbons with sag when slack, a twang when pulled taut, and an
   animated retraction when released.
+
+The mod is fully translated into Russian (`ru_ru`); every in-game string has an entry.
 
 ## Development
 

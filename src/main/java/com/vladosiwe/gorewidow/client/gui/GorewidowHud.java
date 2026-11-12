@@ -1,13 +1,14 @@
 package com.vladosiwe.gorewidow.client.gui;
 
-import com.vladosiwe.gorewidow.entity.GorewidowCare;
+import com.vladosiwe.gorewidow.entity.GorewidowMind;
+import com.vladosiwe.gorewidow.entity.GorewidowNursery;
+import com.vladosiwe.gorewidow.entity.GorewidowStats;
 import com.vladosiwe.gorewidow.entity.GorewidowEntity;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -47,110 +48,74 @@ public final class GorewidowHud {
         renderInfo(g, font, widow, mc.player, mc.getWindow().getGuiScaledWidth());
     }
 
+    /** Everything is drawn at this scale: a small, unobtrusive panel. */
+    private static final float SCALE = 0.75F;
+
+    /** Rider gauges: three slim bars in the corner (weight appears only when nearly full). */
     private static void renderMount(GuiGraphics g, Font font, GorewidowEntity mount) {
-        int w = 132;
-        int h = 72;
-        int x = 6;
-        int y = 6;
-        UiDraw.panel(g, x, y, w, h);
-        g.drawString(font, mount.getDisplayName(), x + 5, y + 4, UiDraw.TEXT, false);
+        g.pose().pushPose();
+        g.pose().translate(4, 4, 0);
+        g.pose().scale(SCALE, SCALE, 1);
+        float load = mount.getCarriedWeight() / mount.getMaxWeight();
+        boolean showWeight = load > 0.8F;
+        int w = 96;
+        int h = 16 + 7 * (showWeight ? 4 : 3);
+        UiDraw.panel(g, 0, 0, w, h);
+        g.drawString(font, font.plainSubstrByWidth(mount.getDisplayName().getString(), w - 34), 4, 4, UiDraw.TEXT, false);
         String lvl = Component.translatable("gui.gorewidow.level", mount.getLevel()).getString();
-        g.drawString(font, lvl, x + w - 5 - font.width(lvl), y + 4, UiDraw.TEXT_DIM, false);
-        int by = y + 15;
-        UiDraw.labelledBar(g, font, x + 5, by, w - 10, Component.translatable("stat.gorewidow.health").getString(),
-                UiDraw.num(mount.getHealth()) + "/" + UiDraw.num(mount.getMaxHealth()), mount.getHealth() / mount.getMaxHealth(), UiDraw.HEALTH);
-        UiDraw.labelledBar(g, font, x + 5, by + 14, w - 10, Component.translatable("stat.gorewidow.stamina").getString(),
-                UiDraw.num(mount.getStamina()) + "/" + UiDraw.num(mount.getMaxStamina()), mount.getStamina() / mount.getMaxStamina(), UiDraw.STAMINA);
-        UiDraw.labelledBar(g, font, x + 5, by + 28, w - 10, Component.translatable("stat.gorewidow.food").getString(),
-                UiDraw.num(mount.getFood()) + "/" + UiDraw.num(mount.getMaxFood()), mount.getFood() / mount.getMaxFood(), UiDraw.FOOD);
-        UiDraw.labelledBar(g, font, x + 5, by + 42, w - 10, Component.translatable("stat.gorewidow.weight").getString(),
-                UiDraw.num(mount.getCarriedWeight()) + "/" + UiDraw.num(mount.getMaxWeight()),
-                mount.getCarriedWeight() / mount.getMaxWeight(), mount.isEncumbered() ? UiDraw.HEALTH : UiDraw.WEIGHT);
+        g.drawString(font, lvl, w - 4 - font.width(lvl), 4, UiDraw.TEXT_DIM, false);
+        int y = 15;
+        UiDraw.bar(g, 4, y, w - 8, 4, mount.getHealth() / mount.getMaxHealth(), UiDraw.HEALTH);
+        UiDraw.bar(g, 4, y + 7, w - 8, 4, mount.getStamina() / mount.getMaxStamina(), UiDraw.STAMINA);
+        UiDraw.bar(g, 4, y + 14, w - 8, 4, mount.getFood() / mount.getMaxFood(), UiDraw.FOOD);
+        if (showWeight) {
+            UiDraw.bar(g, 4, y + 21, w - 8, 4, load, mount.isEncumbered() ? UiDraw.HEALTH : UiDraw.WEIGHT);
+        }
+        g.pose().popPose();
     }
 
+    /** Looked-at creature: name, level and sex, health, and one line with what matters right now. */
     private static void renderInfo(GuiGraphics g, Font font, GorewidowEntity widow, Player player, int screenW) {
         boolean tame = widow.isTame();
-        boolean mine = tame && widow.isOwnedBy(player);
         float taming = widow.getTamingPercent();
-        Player feeder = widow.getTameFeeder();
-        boolean taming_ = !tame && (taming > 0 || feeder != null);
+        boolean taming_ = !tame && (taming > 0 || widow.getTameFeeder() != null);
+        GorewidowStats st = widow.getStats();
 
-        Component wildHint = feeder == player ? Component.translatable("gui.gorewidow.hint_feeding")
-                : Component.translatable("gui.gorewidow.hint_wild");
-        int w = Math.max(190, tame ? 0 : font.width(wildHint) + 12);
-        boolean baby = widow.isBaby();
-        int lines = 5 + (taming_ ? 4 : 0) + (tame ? 2 : 1) + (baby ? 2 : 0);
-        int h = 8 + lines * 11;
-        int x = screenW / 2 - w / 2;
-        int y = 6;
-        UiDraw.panel(g, x, y, w, h);
-        Component title = tame || widow.hasCustomName() ? widow.getDisplayName()
-                : Component.translatable("gui.gorewidow.wild", widow.getDisplayName());
-        g.drawString(font, title, x + 6, y + 5, tame ? UiDraw.TEXT : 0xFFFF8A80, false);
-        String lvl = Component.translatable("gui.gorewidow.level", widow.getLevel()).getString();
-        g.drawString(font, lvl, x + w - 6 - font.width(lvl), y + 5, UiDraw.TEXT_DIM, false);
-        int cy = y + 17;
-        UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("stat.gorewidow.health").getString(),
-                UiDraw.num(widow.getHealth()) + "/" + UiDraw.num(widow.getMaxHealth()), widow.getHealth() / widow.getMaxHealth(), UiDraw.HEALTH);
-        cy += 16;
-
-        // sex and lineage (and, for babies, growth, imprint and what it wants)
-        com.vladosiwe.gorewidow.entity.GorewidowStats st = widow.getStats();
-        Component sex = Component.translatable(widow.isFemale() ? "gui.gorewidow.female" : "gui.gorewidow.male");
-        g.drawString(font, Component.translatable("gui.gorewidow.lineage", sex, st.generation(), st.mutations()), x + 6, cy,
-                widow.isFemale() ? 0xFFFF9ACD : 0xFF8FC8FF, false);
-        if (tame && st.imprint() > 0 && !baby) {
-            String imp = Component.translatable("gui.gorewidow.imprint", Math.round(st.imprint() * 100)).getString();
-            g.drawString(font, imp, x + w - 6 - font.width(imp), cy, UiDraw.XP, false);
-        }
-        cy += 11;
-        if (baby) {
-            g.drawString(font, Component.translatable("gui.gorewidow.baby", Math.round(widow.getMaturity() * 100), Math.round(st.imprint() * 100)),
-                    x + 6, cy, UiDraw.XP, false);
-            cy += 11;
-            com.vladosiwe.gorewidow.entity.GorewidowNursery.Care care = widow.getCareRequest();
-            if (care != com.vladosiwe.gorewidow.entity.GorewidowNursery.Care.NONE) {
-                g.drawString(font, Component.translatable("gui.gorewidow.wants", care.label(), "!"), x + 6, cy, 0xFFFFD36B, false);
-            }
-            cy += 11;
-        }
-
-        // what it thinks of you, and what it is up to
-        float trust = widow.getMind().trust(player);
-        Component trustLine = Component.translatable(tame ? "gui.gorewidow.bond" : "gui.gorewidow.trust", Math.round(trust),
-                com.vladosiwe.gorewidow.entity.GorewidowMind.trustLabel(trust));
-        int trustColor = trust <= com.vladosiwe.gorewidow.entity.GorewidowMind.HOSTILE ? UiDraw.HEALTH
-                : trust < com.vladosiwe.gorewidow.entity.GorewidowMind.CURIOUS ? 0xFFE0B070 : UiDraw.XP;
-        g.drawString(font, trustLine, x + 6, cy, trustColor, false);
-        String mood = widow.getMood().label().getString();
-        g.drawString(font, mood, x + w - 6 - font.width(mood), cy, UiDraw.TEXT_DIM, false);
-        cy += 11;
-
+        Component line;
+        int lineColor;
         if (taming_) {
-            UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("gui.gorewidow.taming").getString(),
-                    String.format(java.util.Locale.ROOT, "%.1f%%", taming), taming / 100.0F, UiDraw.TAMING);
-            cy += 16;
-            float eff = widow.getTamingEffectiveness();
-            UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("gui.gorewidow.effectiveness").getString(),
-                    String.format(java.util.Locale.ROOT, "%.1f%%", eff), eff / 100.0F, UiDraw.EFFECTIVENESS);
-            cy += 16;
-            int wild = widow.getStats().wildLevel();
-            int remaining = (int) Math.ceil((100.0F - taming) / 100.0F * GorewidowCare.requiredVials(wild));
-            g.drawString(font, Component.translatable("gui.gorewidow.taming_info", remaining,
-                    GorewidowCare.bonusLevels(wild, eff)), x + 6, cy, UiDraw.TEXT_DIM, false);
-            cy += 11;
-        }
-        if (tame) {
-            LivingEntity owner = widow.getOwner();
-            Component ownerName = owner != null ? owner.getDisplayName() : Component.literal("?");
-            g.drawString(font, Component.translatable("gui.gorewidow.owner", ownerName), x + 6, cy, UiDraw.TEXT_DIM, false);
-            String state = widow.getCommand().label().getString() + " · " + widow.getAggression().label().getString();
-            g.drawString(font, state, x + w - 6 - font.width(state), cy, UiDraw.TEXT_DIM, false);
-            cy += 11;
-            Component hint = mine ? Component.translatable("gui.gorewidow.hint_owner") : Component.translatable("gui.gorewidow.hint_other");
-            g.drawString(font, hint, x + 6, cy, 0xFF8FD18A, false);
+            line = Component.translatable("gui.gorewidow.short_taming", Math.round(taming), Math.round(widow.getTamingEffectiveness()));
+            lineColor = UiDraw.TAMING;
+        } else if (widow.isBaby() && widow.getCareRequest() != GorewidowNursery.Care.NONE) {
+            line = Component.translatable("gui.gorewidow.short_wants", widow.getCareRequest().label());
+            lineColor = 0xFFFFD36B;
+        } else if (widow.isBaby()) {
+            line = Component.translatable("gui.gorewidow.short_baby", Math.round(widow.getMaturity() * 100), Math.round(st.imprint() * 100));
+            lineColor = UiDraw.XP;
         } else {
-            g.drawString(font, wildHint, x + 6, cy, feeder == player ? UiDraw.TAMING : 0xFFE0B070, false);
+            float trust = widow.getMind().trust(player);
+            line = GorewidowMind.trustLabel(trust).copy().append(" · ").append(widow.getMood().label());
+            lineColor = trust <= GorewidowMind.HOSTILE ? UiDraw.HEALTH : trust < GorewidowMind.CURIOUS ? 0xFFE0B070 : UiDraw.XP;
         }
+
+        int w = Math.max(110, font.width(line) + 10);
+        int h = taming_ ? 37 : 31;
+        g.pose().pushPose();
+        g.pose().translate(screenW / 2.0F - w * SCALE / 2.0F, 4, 0);
+        g.pose().scale(SCALE, SCALE, 1);
+        UiDraw.panel(g, 0, 0, w, h);
+        String sex = widow.isFemale() ? "\u2640" : "\u2642";
+        String lvl = Component.translatable("gui.gorewidow.level", widow.getLevel()).getString();
+        int right = font.width(sex) + font.width(lvl) + 10;
+        String name = font.plainSubstrByWidth(widow.getDisplayName().getString(), w - right - 4);
+        g.drawString(font, name, 4, 4, tame ? UiDraw.TEXT : 0xFFFF8A80, false);
+        g.drawString(font, lvl, w - 4 - font.width(lvl), 4, UiDraw.TEXT_DIM, false);
+        g.drawString(font, sex, w - 8 - font.width(lvl) - font.width(sex), 4, widow.isFemale() ? 0xFFFF9ACD : 0xFF8FC8FF, false);
+        UiDraw.bar(g, 4, 14, w - 8, 4, widow.getHealth() / widow.getMaxHealth(), UiDraw.HEALTH);
+        g.drawString(font, line, 4, 21, lineColor, false);
+        if (taming_) {
+            UiDraw.bar(g, 4, 31, w - 8, 3, taming / 100.0F, UiDraw.TAMING);
+        }
+        g.pose().popPose();
     }
 }

@@ -18,7 +18,7 @@ import java.util.List;
 public class RadialMenuScreen extends Screen {
     private record Option(Action action, Component label, boolean current) {}
 
-    private static final int RADIUS = 108;
+    private static final int RADIUS = 92;
     private final GorewidowEntity widow;
     private final List<Option> options = new ArrayList<>();
     private int hovered = -1;
@@ -78,7 +78,7 @@ public class RadialMenuScreen extends Screen {
         }
         if (this.hovered >= 0) {
             float a = this.angleOf(this.hovered);
-            for (int r = 30; r < RADIUS - 18; r += 3) {
+            for (int r = 26; r < RADIUS - 14; r += 3) {
                 int px = cx + Math.round(Mth.cos(a) * r);
                 int py = cy + Math.round(Mth.sin(a) * r);
                 g.fill(px - 1, py - 1, px + 2, py + 2, 0xC0D8403A);
@@ -87,17 +87,18 @@ public class RadialMenuScreen extends Screen {
         for (int i = 0; i < this.options.size(); i++) {
             Option o = this.options.get(i);
             float a = this.angleOf(i);
-            int ox = cx + Math.round(Mth.cos(a) * RADIUS);
+            // labels sit on a wide ellipse so neighbours near the top and bottom do not overlap
+            int ox = cx + Math.round(Mth.cos(a) * RADIUS * 1.5F);
             int oy = cy + Math.round(Mth.sin(a) * RADIUS);
-            String text = (i < 10 ? (i + 1) % 10 + "  " : "") + o.label().getString();
-            int w = this.font.width(text) + 12;
+            String text = (i < 10 ? (i + 1) % 10 + " " : "") + o.label().getString();
+            int w = this.font.width(text) + 8;
             int x0 = ox - w / 2;
-            int y0 = oy - 9;
+            int y0 = oy - 7;
             boolean hot = i == this.hovered;
-            g.fill(x0, y0, x0 + w, y0 + 18, hot ? 0xE07A1A22 : UiDraw.PANEL);
+            g.fill(x0, y0, x0 + w, y0 + 14, hot ? 0xE07A1A22 : UiDraw.PANEL);
             g.fill(x0, y0, x0 + w, y0 + 1, o.current() ? UiDraw.XP : UiDraw.TRIM);
-            g.fill(x0, y0 + 17, x0 + w, y0 + 18, o.current() ? UiDraw.XP : UiDraw.TRIM);
-            g.drawString(this.font, text, x0 + 6, y0 + 5, o.current() ? UiDraw.XP : UiDraw.TEXT, false);
+            g.fill(x0, y0 + 13, x0 + w, y0 + 14, o.current() ? UiDraw.XP : UiDraw.TRIM);
+            g.drawString(this.font, text, x0 + 4, y0 + 3, o.current() ? UiDraw.XP : UiDraw.TEXT, false);
         }
         // centre: identity and health
         UiDraw.panel(g, cx - 54, cy - 22, 108, 44);

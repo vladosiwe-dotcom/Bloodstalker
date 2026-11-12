@@ -398,10 +398,10 @@ public final class GorewidowRig {
             float pitch = (float) Mth.clamp(Math.atan2(front - back, 2.4) * 0.8, -0.45, 0.45) * w;
             float roll = (float) Mth.clamp(-Math.atan2(left - right, 3.6) * 0.8, -0.4, 0.4) * w;
             float rear = widow.getStanceBlend(partial);
-            tilt.setRotX(pitch * (1 - rear) + rear * 0.78F);
+            tilt.setRotX(pitch * (1 - rear) + rear * 1.18F);
             tilt.setRotZ(roll * (1 - rear));
             tilt.setRotY(0);
-            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 6.0F);
+            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F);
         }
 
         // ---- neck look
@@ -425,6 +425,12 @@ public final class GorewidowRig {
         Matrix4f invBody = new Matrix4f(bodyMatrix).invert();
 
         float time = (widow.tickCount + partial) * 0.05F;
+        net.minecraft.world.entity.LivingEntity grabbed = widow.getDrainTarget();
+        if (grabbed == null) {
+            grabbed = widow.getTameFeeder();
+        }
+        net.minecraft.world.phys.AABB grabBox = grabbed != null
+                ? grabbed.getBoundingBox().move(grabbed.getPosition(partial).subtract(grabbed.position())) : null;
         for (int i = 0; i < LEGS; i++) {
             String name = GorewidowAnatomy.LEG_NAMES[i];
             GeoBone coxa = model.getBone(name + "_coxa").orElse(null);
@@ -457,8 +463,8 @@ public final class GorewidowRig {
             if (rearing > 0 && idx < 2) {
                 float[] reared = idx == 0
                         // front pair reaches forward and down, cradling the rider held out in front
-                        ? new float[]{(float) Math.toRadians(-48), (float) Math.toRadians(-5), (float) Math.toRadians(-70), (float) Math.toRadians(-35)}
-                        : new float[]{(float) Math.toRadians(-22), (float) Math.toRadians(10), (float) Math.toRadians(-85), (float) Math.toRadians(-30)};
+                        ? new float[]{(float) Math.toRadians(-50), (float) Math.toRadians(-25), (float) Math.toRadians(-62), (float) Math.toRadians(-35)}
+                        : new float[]{(float) Math.toRadians(-25), (float) Math.toRadians(-12), (float) Math.toRadians(-80), (float) Math.toRadians(-30)};
                 angles = mix(angles, reared, rearing);
             }
             if (idx == 0) {
@@ -467,12 +473,28 @@ public final class GorewidowRig {
                 float[] gripping = {(float) Math.toRadians(-28), (float) Math.toRadians(42),
                         (float) Math.toRadians(-118) + Mth.sin(time * 10) * 0.08F, (float) Math.toRadians(-50)};
                 angles = mix(angles, raised, this.raise * (1 - this.grip));
-                angles = mix(angles, gripping, this.grip);
+                angles = mix(angles, gripping, this.grip * (grabBox == null ? 1 : 0));
             } else if (idx == 1 && this.grip > 0) {
                 float[] gripping = {(float) Math.toRadians(-12), (float) Math.toRadians(38), (float) Math.toRadians(-110), (float) Math.toRadians(-45)};
                 angles = mix(angles, gripping, this.grip * 0.6F);
             }
 
+            // grabbing: the front two pairs close around the victim's body from their own side
+            if (grabBox != null && idx < 2 && this.grip > 0.01F) {
+                Vec3 centre = grabBox.getCenter();
+                Vec3 hipWorld = this.modelToWorld(hip[0], hip[1], hip[2]);
+                Vec3 toHip = new Vec3(hipWorld.x - centre.x, 0, hipWorld.z - centre.z);
+                toHip = toHip.lengthSqr() > 1.0E-4 ? toHip.normalize() : this.forward().scale(-1);
+                double radius = grabBox.getXsize() * 0.5 + 0.08;
+                double height = grabBox.getYsize() * (idx == 0 ? 0.25 : -0.15);
+                Vec3 hold = centre.add(toHip.scale(radius)).add(0, height + Mth.sin(time * 9 + i) * 0.03, 0);
+                Vec3 holdModel = this.worldToModelPx(hold);
+                Vector3f hb = invBody.transformPosition(new Vector3f((float) holdModel.x, (float) holdModel.y, (float) holdModel.z));
+                float[] wrap = solve(hb.x - hip[0], hb.y - hip[1], hb.z - hip[2], c, GorewidowAnatomy.FEMUR[i], GorewidowAnatomy.TIBIA[i]);
+                wrap[0] = Mth.wrapDegrees((wrap[0] - psi0) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
+                wrap[3] = (float) Math.toRadians(-70);  // claws hooked in
+                angles = mix(angles, wrap, this.grip);
+            }
             coxa.setRotY(angles[0]);
             coxa.setRotX(0);
             coxa.setRotZ(0);

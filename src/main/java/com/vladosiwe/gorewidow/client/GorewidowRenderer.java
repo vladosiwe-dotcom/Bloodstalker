@@ -84,7 +84,7 @@ public class GorewidowRenderer extends GeoEntityRenderer<GorewidowEntity> {
             this.bellyStrands(poseStack, buffers, widow, rig, base, rider.getPosition(partialTick).add(0, 0.9, 0), time, 1.0F - p * 0.6F, 0.12F * (1 - p));
         } else if (widow.isDismounting()) {
             float p = widow.getDismountProgress(partialTick);
-            Vec3 snapped = widow.getDismountPoint().lerp(rig.modelToWorld(0, 12, 0), p);
+            Vec3 snapped = widow.getDismountPoint().lerp(rig.modelToWorld(0, com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT - 8, 0), p);
             this.bellyStrands(poseStack, buffers, widow, rig, base, snapped, time, 1.0F - p, 0.2F * (1 - p));
         }
         // the taming feed: threads latched onto the crouching player
@@ -125,7 +125,8 @@ public class GorewidowRenderer extends GeoEntityRenderer<GorewidowEntity> {
     /** A spread of threads from points under the belly to a target point. */
     private void bellyStrands(PoseStack poseStack, MultiBufferSource buffers, GorewidowEntity widow, GorewidowRig rig, Vec3 base,
                               Vec3 targetWorld, float time, float alpha, float twang) {
-        float[][] anchors = {{-5, 12, -6}, {5, 12, -6}, {-5, 12, 6}, {5, 12, 6}, {0, 11, 0}};
+        float b = com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT - 8;
+        float[][] anchors = {{-5, b, -6}, {5, b, -6}, {-5, b, 6}, {5, b, 6}, {0, b - 1, 0}};
         Vec3 to = targetWorld.subtract(base);
         for (int i = 0; i < anchors.length; i++) {
             Vec3 a = rig.modelToWorld(anchors[i][0], anchors[i][1], anchors[i][2]).subtract(base);

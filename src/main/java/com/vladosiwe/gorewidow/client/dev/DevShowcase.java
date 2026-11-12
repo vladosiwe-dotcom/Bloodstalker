@@ -131,7 +131,7 @@ public final class DevShowcase {
         SCENES.add(new Scene("ceiling", 40, c -> {
             c.fill(-4, 6, -4, 4, 6, 4, Blocks.DEEPSLATE_TILES.defaultBlockState());
             c.fill(4, 0, 4, 4, 5, 4, Blocks.DEEPSLATE_TILES.defaultBlockState());
-            GorewidowEntity w = c.widow(0, 6 - 1.8, 0, 30);
+            GorewidowEntity w = c.widow(0, 6 - 2.4, 0, 30);
             w.setSurface(Direction.UP);
         }, c -> {}, new Vec3(-4.5, 1.6, -5.0), new Vec3(0, 4.6, 0), false));
         SCENES.add(new Scene("web_swing", 40, c -> {
@@ -152,7 +152,7 @@ public final class DevShowcase {
         }, c -> {}, new Vec3(1, 3.5, -8), new Vec3(1, 1.0, 0), false));
         SCENES.add(new Scene("hang", 70, c -> {
             c.fill(-2, 10, -2, 2, 10, 2, Blocks.OAK_LEAVES.defaultBlockState());
-            GorewidowEntity w = c.widow(0, 10 - 1.8, 0, 0);
+            GorewidowEntity w = c.widow(0, 10 - 2.4, 0, 0);
             w.startHang(c.at(0, 10, 0), Direction.DOWN, 1.0F);
         }, c -> c.first().setAiReel(c.first().getRopeLength() < 4.5F ? -1.0F : 0.0F),
                 new Vec3(-5, 3.5, -5), new Vec3(0, 6.0, 0), false));
@@ -560,7 +560,8 @@ public final class DevShowcase {
             mc.player.xRotO = pitch;
         }
         if (ticks == scene.settleTicks()) {
-            LOGGER.info("showcase {}: lookedAt={} crosshair={}", scene.name(), com.vladosiwe.gorewidow.client.gui.GorewidowHud.lookedAt(), mc.crosshairPickEntity);
+            net.minecraft.world.entity.Entity cr = rider == null ? null : mc.level.getEntity(rider.getId());
+            LOGGER.info("showcase {}: rider={} clientRider={} clientVehicle={} prog={}", scene.name(), rider == null ? null : rider.position(), cr == null ? null : cr.position(), cr == null ? null : cr.getVehicle(), cr != null && cr.getVehicle() instanceof GorewidowEntity gw ? gw.getMountProgress(0) : -1);
             String file = "gorewidow_" + String.format("%02d", sceneIndex) + "_" + scene.name() + ".png";
             Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), msg -> LOGGER.info("showcase: {}", msg.getString()));
         }

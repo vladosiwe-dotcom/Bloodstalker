@@ -161,6 +161,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final RawAnimation LAND = RawAnimation.begin().thenPlay("land");
     private static final RawAnimation LEAP = RawAnimation.begin().thenPlay("leap");
     private static final RawAnimation DISMOUNT = RawAnimation.begin().thenPlay("dismount");
+    private static final RawAnimation GRAB = RawAnimation.begin().thenPlay("grab");
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -667,7 +668,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** Where the rider's eyes are held in the stance: forward of the head, well above the ground. */
     public Vec3 getStanceEyePos() {
-        return this.modelToWorld(0, 36.0F, -26.0F);
+        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT + 22.0F, -18.0F);
     }
 
     // ---- breeding, babies, ARK options
@@ -1774,7 +1775,36 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.entityData.set(DATA_DRAIN_ID, target.getId());
         this.drainTicks = 0;
         this.damageTakenWhileDraining = 0;
+        this.triggerAnim("action", "grab");
         this.playSound(ModSounds.SCREECH.get(), 1.0F, 1.3F);
+    }
+
+    /** Victims small enough are lifted and held against the fangs while it feeds. */
+    public boolean canHold(LivingEntity target) {
+        return target.getBbWidth() <= 1.5F && target.getBbHeight() <= 2.2F;
+    }
+
+    /** Point where a held victim's centre is kept: right in front of the mouth, slightly lifted. */
+    public Vec3 getHoldPoint() {
+        return this.modelToWorld(0, GorewidowAnatomy.MOUTH[1] - 6.0F, -30.0F);
+    }
+
+    private void holdVictim(LivingEntity target) {
+        if (!this.canHold(target)) {
+            return;
+        }
+        Vec3 hold = this.getHoldPoint().subtract(0, target.getBbHeight() * 0.5, 0);
+        Vec3 delta = hold.subtract(target.position());
+        if (target instanceof Player) {
+            // players are steered by their own client: pin them with velocity
+            Vec3 pull = delta.length() > 0.05 ? delta.scale(0.6) : Vec3.ZERO;
+            target.setDeltaMovement(pull.x, Math.max(pull.y, 0.0), pull.z);
+            target.hurtMarked = true;
+        } else if (delta.lengthSqr() < 9.0) {
+            target.setPos(target.position().add(delta.scale(0.35)));
+            target.setDeltaMovement(Vec3.ZERO);
+        }
+        target.resetFallDistance();
     }
 
     public void stopDrain() {
@@ -1799,6 +1829,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         target.addEffect(new MobEffectInstance(ModEffects.WEBBED, 30, 1), this);
         target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0), this);
         this.getLookControl().setLookAt(target, 60, 60);
+        this.holdVictim(target);
         if (this.drainTicks % 10 == 0) {
             float amount = 2.0F;
             if (target.hurt(ModDamageTypes.bloodDrain(this), amount)) {
@@ -2183,7 +2214,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** Where the rider's eyes sit: under the thorax, between belly and surface. */
     public Vec3 getRiderEyePos() {
-        return this.modelToWorld(0, 6.5F, -9.5F);
+        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 15.0F, -9.5F);
     }
 
     @Override
@@ -2403,7 +2434,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 .triggerableAnim("mount", MOUNT)
                 .triggerableAnim("land", LAND)
                 .triggerableAnim("leap", LEAP)
-                .triggerableAnim("dismount", DISMOUNT));
+                .triggerableAnim("dismount", DISMOUNT)
+                .triggerableAnim("grab", GRAB));
     }
 
     private PlayState movementState(AnimationState<GorewidowEntity> state) {
