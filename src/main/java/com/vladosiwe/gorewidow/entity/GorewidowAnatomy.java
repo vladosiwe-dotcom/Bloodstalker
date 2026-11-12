@@ -25,6 +25,17 @@ public final class GorewidowAnatomy {
     public static final float[] TIBIA = {46.0f, 42.0f, 42.0f, 46.0f, 46.0f, 42.0f, 42.0f, 46.0f};
     /** Rest foot positions on the surface plane (y = 0). */
     public static final float[][] REST_FOOT = {{-31.8626f, 0f, -41.5967f}, {-41.2330f, 0f, -16.6351f}, {-42.8712f, 0f, 10.3930f}, {-36.5650f, 0f, 36.4510f}, {31.8626f, 0f, -41.5967f}, {41.2330f, 0f, -16.6351f}, {42.8712f, 0f, 10.3930f}, {36.5650f, 0f, 36.4510f}};
+    /** Grasping arms under the thorax that hold the rider (same chain layout as the legs). */
+    public static final String[] CLASP_NAMES = {"clasp_l1", "clasp_l2", "clasp_r1", "clasp_r2"};
+    public static final int[] CLASP_CHAIN_SIGN = {-1, -1, 1, 1};
+    public static final float[][] CLASP_HIP = {{-3.2f, 26.0f, -4.2f}, {-3.2f, 26.0f, 4.4f}, {3.2f, 26.0f, -4.2f}, {3.2f, 26.0f, 4.4f}};
+    public static final float[] CLASP_REST_YAW = {-0.436332f, 0.436332f, 0.436332f, -0.436332f};
+    public static final float CLASP_COXA = 1.0f;
+    public static final float CLASP_FEMUR = 6.5f;
+    public static final float CLASP_TIBIA = 7.0f;
+    public static final float CLASP_TARSUS = 3.0f;
+    public static final float CLASP_TARSUS_ELEVATION = (float) Math.toRadians(-140.0);
+    public static final float[] CLASP_FOLD = {(float) Math.toRadians(38.0), (float) Math.toRadians(-150.0), (float) Math.toRadians(-45.0)};
     /** Spinneret tip (web origin) at rest. */
     public static final float[] SPINNERET = {0f, 32.0f, 38.725f};
     /** Mouth / fang position at rest. */

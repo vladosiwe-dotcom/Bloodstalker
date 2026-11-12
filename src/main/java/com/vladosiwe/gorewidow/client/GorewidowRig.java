@@ -154,6 +154,8 @@ public final class GorewidowRig {
         return this.scale;
     }
 
+    private float claspHold;
+
     public Vec3 modelToWorld(float x, float y, float z) {
         float k = PX * this.scale;
         Vector3f v = this.orientation.transform(new Vector3f(x * k, y * k, z * k));
@@ -508,6 +510,52 @@ public final class GorewidowRig {
             tarsus.setRotX(0);
             tarsus.setRotY(0);
         }
+
+        // claspers: folded under the belly, or hooked around the rider's shoulders and hips
+        float holdTarget = 0;
+        if (widow.getFirstPassenger() != null) {
+            float t = widow.getMountProgress(partial);
+            holdTarget = t * t * (3 - 2 * t) * (1 - widow.getStanceBlend(partial));
+        }
+        this.claspHold += (holdTarget - this.claspHold) * 0.35F;
+        for (int i = 0; i < GorewidowAnatomy.CLASP_NAMES.length; i++) {
+            String name = GorewidowAnatomy.CLASP_NAMES[i];
+            GeoBone coxa = model.getBone(name + "_coxa").orElse(null);
+            GeoBone femur = model.getBone(name + "_femur").orElse(null);
+            GeoBone tibia = model.getBone(name + "_tibia").orElse(null);
+            GeoBone hand = model.getBone(name + "_tarsus").orElse(null);
+            if (coxa == null || femur == null || tibia == null || hand == null) {
+                continue;
+            }
+            int c = GorewidowAnatomy.CLASP_CHAIN_SIGN[i];
+            float[] hip = GorewidowAnatomy.CLASP_HIP[i];
+            float twitch = Mth.sin(time * 7 + i * 1.7F) * 0.05F;
+            float[] fold = GorewidowAnatomy.CLASP_FOLD;
+            float[] angles = {0, fold[0] + twitch, fold[1], fold[2]};
+            if (this.claspHold > 0.01F) {
+                // same layout as the rider pose: lying face-down under the belly, feet 0.9 blocks back
+                boolean front = hip[2] < 0;
+                float bellyY = GorewidowAnatomy.BODY_HEIGHT - 15.0F;
+                float z = front ? -6.0F : 5.0F;
+                float squeeze = Mth.sin(time * 3 + i) * 0.25F;
+                Vector3f target = invBody.transformPosition(new Vector3f(Math.signum(hip[0]) * (5.2F + squeeze), bellyY - 0.8F, z));
+                float[] hold = solveClasp(target.x - hip[0], target.y - hip[1], target.z - hip[2], c);
+                hold[0] = Mth.wrapDegrees((hold[0] - GorewidowAnatomy.CLASP_REST_YAW[i]) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
+                angles = mix(angles, hold, this.claspHold);
+            }
+            coxa.setRotY(angles[0]);
+            coxa.setRotX(0);
+            coxa.setRotZ(0);
+            femur.setRotZ(c * angles[1]);
+            femur.setRotX(0);
+            femur.setRotY(0);
+            tibia.setRotZ(c * angles[2]);
+            tibia.setRotX(0);
+            tibia.setRotY(0);
+            hand.setRotZ(c * angles[3]);
+            hand.setRotX(0);
+            hand.setRotY(0);
+        }
     }
 
     /** Captures tracked bone positions after the model was drawn (relative to the entity render origin). */
@@ -577,6 +625,25 @@ public final class GorewidowRig {
         double te = GorewidowAnatomy.TARSUS_ELEVATION;
         double tx = r - Math.cos(te) * GorewidowAnatomy.TARSUS;
         double ty = dy - Math.sin(te) * GorewidowAnatomy.TARSUS;
+        double d = Mth.clamp(Math.sqrt(tx * tx + ty * ty), Math.abs(femur - tibia) + 0.05, femur + tibia - 0.05);
+        double beta = Math.atan2(ty, tx);
+        double alpha = Math.acos(Mth.clamp((femur * femur + d * d - tibia * tibia) / (2 * femur * d), -1, 1));
+        double ef = beta + alpha;
+        double kx = femur * Math.cos(ef);
+        double ky = femur * Math.sin(ef);
+        double et = Math.atan2(ty - ky, tx - kx);
+        return new float[]{(float) psi, (float) ef, (float) (et - ef), (float) (te - et)};
+    }
+
+    /** Two-bone solve for a clasper, the hand hooked inward at a fixed elevation. */
+    static float[] solveClasp(double dx, double dy, double dz, int c) {
+        double psi = Math.atan2(-c * dz, c * dx);
+        double r = Math.max(0.3, Math.sqrt(dx * dx + dz * dz) - GorewidowAnatomy.CLASP_COXA);
+        double te = GorewidowAnatomy.CLASP_TARSUS_ELEVATION;
+        double tx = r - Math.cos(te) * GorewidowAnatomy.CLASP_TARSUS;
+        double ty = dy - Math.sin(te) * GorewidowAnatomy.CLASP_TARSUS;
+        float femur = GorewidowAnatomy.CLASP_FEMUR;
+        float tibia = GorewidowAnatomy.CLASP_TIBIA;
         double d = Mth.clamp(Math.sqrt(tx * tx + ty * ty), Math.abs(femur - tibia) + 0.05, femur + tibia - 0.05);
         double beta = Math.atan2(ty, tx);
         double alpha = Math.acos(Mth.clamp((femur * femur + d * d - tibia * tibia) / (2 * femur * d), -1, 1));

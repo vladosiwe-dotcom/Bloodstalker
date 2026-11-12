@@ -131,7 +131,10 @@ when the cargo is nearly full.
 
 No saddle is needed. Use your tamed Gorewidow with an empty hand: it crouches, reaches out with its
 front legs and **hauls you in on silk threads**, swinging you from upright into a harness hold
-face-down under its belly. You stay there on floors, walls, ceilings and in swings. When you
+face-down under its belly. Two pairs of short **grasping arms** under its thorax then close
+around you: their hooked hands take you by the shoulders and the hips and keep hold (an IK solve
+every frame, so the grip stays put while it walks, climbs and swings). Out of the saddle they fold
+flat against the belly. You stay there on floors, walls, ceilings and in swings. When you
 dismount it lowers itself and the threads snap away. A **Gorewidow Harness** is optional: the rider
 takes 35% less damage and the mount carries 60 more weight.
 

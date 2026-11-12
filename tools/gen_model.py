@@ -308,6 +308,53 @@ for side, sname in ((1, "l"), (-1, "r")):
             "femur": fl, "tibia": tl, "reach": reach, "angle": a,
         })
 
+# --- claspers ----------------------------------------------------------------
+# Two pairs of short grasping arms under the thorax. Folded flat against the belly most of the
+# time; while ridden they reach down and hook their claws around the rider's shoulders and hips.
+CLASPERS = [
+    # idx, hip x, hip z, rest angle (deg toward the front)
+    (1, 3.2, -4.2, 25.0),
+    (2, 3.2, 4.4, -25.0),
+]
+CLASP_Y = 26.0
+CLASP_COXA = 1.0
+CLASP_FEMUR = 6.5
+CLASP_TIBIA = 7.0
+CLASP_TARSUS = 3.0
+CLASP_TARSUS_ELEV = -140.0
+CLASP_FOLD = (38.0, -150.0, -45.0)   # femur elevation, tibia and tarsus relative (deg)
+clasp_records = []
+for side, sname in ((1, "l"), (-1, "r")):
+    for idx, hx, hz, ang in CLASPERS:
+        name = f"clasp_{sname}{idx}"
+        hip = (side * hx, CLASP_Y, hz)
+        a = math.radians(ang)
+        c = -side
+        dx_i, dz_i = c * math.cos(a), -math.sin(a)
+        psi0 = math.atan2(-c * dz_i, c * dx_i)
+        bone(name, "body", hip, rotation=(0, -math.degrees(psi0), 0))
+        bone(name + "_coxa", name, hip)
+        sx = side
+        cube(name + "_coxa", (hip[0] - 1.1, hip[1] - 1.1, hip[2] - 1.1), (2.2, 2.2, 2.2), "joint")
+        fp = (hip[0] + sx * CLASP_COXA, hip[1], hip[2])
+        bone(name + "_femur", name + "_coxa", fp, rotation=(0, 0, c * CLASP_FOLD[0]))
+        cube(name + "_femur", (fp[0] if sx > 0 else fp[0] - CLASP_FEMUR, fp[1] - 1.0, fp[2] - 1.0), (CLASP_FEMUR, 2.0, 2.0), "joint")
+        tp = (fp[0] + sx * CLASP_FEMUR, fp[1], fp[2])
+        bone(name + "_tibia", name + "_femur", tp, rotation=(0, 0, c * CLASP_FOLD[1]))
+        cube(name + "_tibia", (tp[0] - 0.9, tp[1] - 0.9, tp[2] - 0.9), (1.8, 1.8, 1.8), "joint")
+        cube(name + "_tibia", (tp[0] if sx > 0 else tp[0] - CLASP_TIBIA, tp[1] - 0.8, tp[2] - 0.8), (CLASP_TIBIA, 1.6, 1.6), "leg")
+        # a small spur on the forearm
+        sp = tp[0] + sx * CLASP_TIBIA * 0.5
+        cube(name + "_tibia", (sp - 0.4, tp[1] + 0.5, tp[2] - 0.4), (0.8, 1.6, 0.8), "spike",
+             rotation=(0, 0, -sx * 30), pivot=(sp, tp[1] + 0.5, tp[2]))
+        hp = (tp[0] + sx * CLASP_TIBIA, tp[1], tp[2])
+        bone(name + "_tarsus", name + "_tibia", hp, rotation=(0, 0, c * CLASP_FOLD[2]))
+        # the hand: two hooked fingers
+        for dz in (-0.5, 0.5):
+            cube(name + "_tarsus", (hp[0] if sx > 0 else hp[0] - CLASP_TARSUS, hp[1] - 0.4, hp[2] + dz - 0.35),
+                 (CLASP_TARSUS, 1.0, 0.8), "fang", rotation=(0, -sx * dz * 30, 0), pivot=(hp[0], hp[1], hp[2] + dz))
+        clasp_records.append({"name": name, "side": side, "hip": hip, "psi0": psi0})
+
 # ---------------------------------------------------------------------------
 # Texture painting
 # ---------------------------------------------------------------------------
@@ -535,6 +582,18 @@ for r in leg_records:
     rest.append(f"{{{hx + dx * r['reach']:.4f}f, 0f, {hz + dz * r['reach']:.4f}f}}")
 lines.append("    /** Rest foot positions on the surface plane (y = 0). */")
 lines.append("    public static final float[][] REST_FOOT = {" + ", ".join(rest) + "};")
+lines.append("    /** Grasping arms under the thorax that hold the rider (same chain layout as the legs). */")
+lines.append("    public static final String[] CLASP_NAMES = {" + ", ".join(f'"{r["name"]}"' for r in clasp_records) + "};")
+lines.append("    public static final int[] CLASP_CHAIN_SIGN = {" + ", ".join(str(-r["side"]) for r in clasp_records) + "};")
+lines.append("    public static final float[][] CLASP_HIP = {" + ", ".join(
+    f"{{{-r['hip'][0]}f, {r['hip'][1]}f, {r['hip'][2]}f}}" for r in clasp_records) + "};")
+lines.append("    public static final float[] CLASP_REST_YAW = {" + ", ".join(f"{r['psi0']:.6f}f" for r in clasp_records) + "};")
+lines.append(f"    public static final float CLASP_COXA = {CLASP_COXA}f;")
+lines.append(f"    public static final float CLASP_FEMUR = {CLASP_FEMUR}f;")
+lines.append(f"    public static final float CLASP_TIBIA = {CLASP_TIBIA}f;")
+lines.append(f"    public static final float CLASP_TARSUS = {CLASP_TARSUS}f;")
+lines.append(f"    public static final float CLASP_TARSUS_ELEVATION = (float) Math.toRadians({CLASP_TARSUS_ELEV});")
+lines.append(f"    public static final float[] CLASP_FOLD = {{(float) Math.toRadians({CLASP_FOLD[0]}), (float) Math.toRadians({CLASP_FOLD[1]}), (float) Math.toRadians({CLASP_FOLD[2]})}};")
 lines.append("    /** Spinneret tip (web origin) at rest. */")
 sp_tip = _bone_index["spinneret"]["pivot"]
 lines.append(f"    public static final float[] SPINNERET = {{0f, {sp_tip[1]}f, {sp_tip[2] + 0.6}f}};")

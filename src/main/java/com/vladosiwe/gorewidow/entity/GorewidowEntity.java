@@ -2214,7 +2214,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** Where the rider's eyes sit: under the thorax, between belly and surface. */
     public Vec3 getRiderEyePos() {
-        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 15.0F, -9.5F);
+        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 19.0F, -9.5F);
     }
 
     @Override

@@ -222,6 +222,19 @@ public final class DevShowcase {
         mountScene("ride_mount_a", 4 + 9);
         mountScene("ride_mount_b", 4 + 17);
         mountScene("ride_mount_c", 4 + 40);
+        SCENES.add(new Scene("ride_held", 4 + 40, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 90);
+            ServerPlayer r = makeRider(c.level);
+            r.stopRiding();
+            Vec3 p = c.at(-2.2, 0, 0.3);
+            r.teleportTo(c.level, p.x, p.y, p.z, 90, 0);
+            w.tame(r);
+            w.setHarness(true);
+        }, c -> {
+            if (ticks == 4) {
+                c.first().tryMount(rider);
+            }
+        }, new Vec3(0.4, 0.25, -2.4), new Vec3(0.2, 1.05, 0.3), false));
         SCENES.add(new Scene("ride_stance", 4 + 40, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 90);
             ServerPlayer r = makeRider(c.level);

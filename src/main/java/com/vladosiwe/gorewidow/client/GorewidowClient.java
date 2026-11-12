@@ -268,7 +268,7 @@ public final class GorewidowClient {
         float partial = event.getPartialTick();
         Vec3 up = rig.up();
         Vec3 fwd = rig.forward();
-        Vec3 belly = rig.modelToWorld(0, com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT - 11.0F, 2.0F);
+        Vec3 belly = rig.modelToWorld(0, com.vladosiwe.gorewidow.entity.GorewidowAnatomy.BODY_HEIGHT - 15.0F, 2.0F);
         Vec3 feet = belly.subtract(fwd.scale(0.9));
         Vec3 offset = feet.subtract(player.getPosition(partial));
 
