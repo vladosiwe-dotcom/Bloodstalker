@@ -21,11 +21,24 @@ public class GorewidowWebPullGoal extends Goal {
     @Override
     public boolean canUse() {
         LivingEntity target = this.widow.getTarget();
-        if (target == null || !target.isAlive() || this.widow.isVehicle() || this.widow.getWebCooldown() > 0
-                || this.widow.getWebMode() != WebMode.NONE || this.widow.isDraining()) {
+        if (target == null || !target.isAlive() || this.widow.isVehicle() || this.widow.getWebMode() != WebMode.NONE
+                || this.widow.isDraining()) {
             return false;
         }
         double dist = this.widow.distanceTo(target);
+        if (this.widow.hasOpeningPull()) {
+            // ordered to attack: the first thing it does is fire a line and reel the target in
+            if (dist > 3.0 && dist < GorewidowEntity.WEB_RANGE - 2 && this.widow.hasLineOfSight(target)) {
+                return true;
+            }
+            if (dist <= 3.0) {
+                this.widow.consumeOpeningPull();
+            }
+            return false;
+        }
+        if (this.widow.getWebCooldown() > 0) {
+            return false;
+        }
         return dist > 6.0 && dist < GorewidowEntity.WEB_RANGE - 6 && this.widow.hasLineOfSight(target)
                 && this.widow.getRandom().nextInt(12) == 0;
     }
@@ -47,7 +60,9 @@ public class GorewidowWebPullGoal extends Goal {
         double flight = this.widow.getSpinneretPos().distanceTo(aim) / GorewidowEntity.WEB_SHOT_SPEED;
         aim = aim.add(target.getDeltaMovement().multiply(1, 0, 1).scale(flight));
         this.widow.getLookControl().setLookAt(aim);
-        this.widow.shootWeb(aim, GorewidowEntity.WebPurpose.ATTACK);
+        if (this.widow.shootWeb(aim, GorewidowEntity.WebPurpose.ATTACK)) {
+            this.widow.consumeOpeningPull();
+        }
         this.timeout = 80;
     }
 
@@ -65,7 +80,9 @@ public class GorewidowWebPullGoal extends Goal {
         if (this.widow.getWebMode() == WebMode.SHOT) {
             this.widow.releaseWeb(false);
         }
-        this.widow.setWebCooldown(70 + this.widow.getRandom().nextInt(60));
+        // a missed opening shot is fired again straight away; otherwise the usual pause
+        this.widow.setWebCooldown(this.widow.getWebMode() == WebMode.NONE && this.widow.hasOpeningPull() ? 0
+                : 70 + this.widow.getRandom().nextInt(60));
     }
 
     @Override

@@ -206,10 +206,7 @@ public final class ModNetwork {
                             || target == player || !widow.canAttack(target)) {
                         continue;
                     }
-                    if (widow.getCommand() == GorewidowCommand.STAY) {
-                        widow.setCommand(GorewidowCommand.FOLLOW);
-                    }
-                    widow.setTarget(target);
+                    widow.orderAttack(target);
                 }
             }
             count++;

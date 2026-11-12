@@ -33,7 +33,7 @@ public class GorewidowPounceGoal extends Goal {
             this.cooldown--;
             return false;
         }
-        if (this.widow.isBaby()) {
+        if (this.widow.isBaby() || this.widow.hasOpeningPull()) {
             return false;
         }
         LivingEntity target = this.widow.getTarget();

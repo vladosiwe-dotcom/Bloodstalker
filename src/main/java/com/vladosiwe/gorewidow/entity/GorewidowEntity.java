@@ -2182,6 +2182,28 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         return this.callOrder != null ? this.level().getPlayerByUUID(this.callOrder) : null;
     }
 
+    /** Set by an attack order: open the fight by snagging the target with a line and reeling it in. */
+    private boolean openingPull;
+
+    /** Whistle / command: attack that target, opening with a web pull. */
+    public void orderAttack(LivingEntity target) {
+        this.clearOrders();
+        if (this.getCommand() == GorewidowCommand.STAY) {
+            this.setCommand(GorewidowCommand.FOLLOW);
+        }
+        this.setTarget(target);
+        this.openingPull = !this.isBaby();
+        this.webCooldown = 0;
+    }
+
+    public boolean hasOpeningPull() {
+        return this.openingPull && this.getTarget() != null && this.getTarget().isAlive();
+    }
+
+    public void consumeOpeningPull() {
+        this.openingPull = false;
+    }
+
     public void clearOrders() {
         this.moveOrder = null;
         this.callOrder = null;

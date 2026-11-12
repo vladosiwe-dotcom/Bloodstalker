@@ -94,7 +94,7 @@ when the cargo is nearly full.
 | **Option wheel** | Sneak + use: Ride, Inventory, Follow / Stay / Wander, Aggressive / Neutral / Passive, Pet / Cuddle, Mating, Follow distance (near / medium / far), Allow others to ride, Take harness (number keys work too) |
 | Inventory and stats | From the wheel or the screen's buttons: harness slot, 15 cargo slots, name, level, XP and every stat with a **+** button for unspent points |
 | Feed / heal | Use a Blood Vial or raw meat on it. When hungry it also eats from its own cargo |
-| Whistles | **J** follow me, **K** stay, **H** attack what I am looking at, **U** go where I point (the block under the crosshair, up to 64 blocks: it walks, climbs walls and ceilings, or fires a line and reels itself up, then waits there), **Y** come and pick me up (the nearest one comes over and takes you into the riding hold). Applies to every owned Gorewidow within 40 blocks, or to the one under the crosshair. No harness needed |
+| Whistles | **J** follow me, **K** stay, **H** attack what I am looking at (it opens by firing a line at the target and reeling it in, then bites and drains it; a missed shot is fired again), **U** go where I point (the block under the crosshair, up to 64 blocks: it walks, climbs walls and ceilings, or fires a line and reels itself up, then waits there), **Y** come and pick me up (the nearest one comes over and takes you into the riding hold). Applies to every owned Gorewidow within 40 blocks, or to the one under the crosshair. No harness needed |
 | Remove harness | Wheel → Take harness, or sneak + use with shears |
 
 - **Levels.** Kills made by the creature or by its rider give XP. Each level-up gives one point to
@@ -205,7 +205,7 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 23 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 24 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts

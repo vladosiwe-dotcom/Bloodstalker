@@ -191,6 +191,30 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 300)
+    public static void attackOrderOpensWithAWebPull(GameTestHelper helper) {
+        GorewidowEntity widow = helper.spawn(ModEntities.GOREWIDOW.get(), new Vec3(8, FLOOR, 2));
+        Pig pig = helper.spawn(EntityType.PIG, new Vec3(8, FLOOR, 13));
+        @SuppressWarnings("removal")
+        ServerPlayer owner = helper.makeMockServerPlayerInLevel();
+        owner.moveTo(helper.absoluteVec(new Vec3(3, FLOOR, 2)));
+        widow.tame(owner);
+        widow.getMind().addTrust(owner, 60.0F);
+        double start = pig.distanceTo(widow);
+        widow.orderAttack(pig);
+        boolean[] tethered = {false};
+        helper.onEachTick(() -> {
+            if (widow.getWebMode() == WebMode.TETHER && widow.getLinkedEntity() == pig) {
+                tethered[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(tethered[0], "never snagged the target with a line");
+            helper.assertTrue(pig.distanceTo(widow) < start - 5.0, "did not reel the target in");
+            owner.discard();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 1200)
     public static void feedingOnACrouchingPlayerTamesIt(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));

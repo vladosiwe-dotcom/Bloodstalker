@@ -342,6 +342,21 @@ public final class DevShowcase {
                 w.setDeltaMovement(w.getDeltaMovement().multiply(0.96, 0, 0.96).add(0, -0.11, 0));
             }
         }, new Vec3(-7, 9, -8), new Vec3(1, 10, 0), false));
+        SCENES.add(new Scene("attack_film", 45, c -> {
+            GorewidowEntity w = c.livingWidow(-6, 0, 0, 270);
+            w.tame(c.player);
+            w.getMind().addTrust(c.player, 60.0F);
+            Pig pig = EntityType.PIG.create(c.level);
+            Vec3 p = c.at(6, 0, 0);
+            pig.moveTo(p.x, p.y, p.z, 90, 0);
+            c.level.addFreshEntity(pig);
+            c.spawned.add(pig);
+        }, c -> {
+            if (ticks == 5) {
+                c.spawned.stream().filter(e -> e instanceof Pig).findFirst()
+                        .ifPresent(pig -> c.first().orderAttack((Pig) pig));
+            }
+        }, new Vec3(0, 3, -10), new Vec3(0, 1, 0), false));
         SCENES.add(new Scene("swing_film", 45, c -> {
             c.fill(-1, 15, -1, 1, 15, 1, Blocks.SPRUCE_LOG.defaultBlockState());
             GorewidowEntity w = c.widow(0.5, 0, -9, 0);
