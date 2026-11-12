@@ -113,6 +113,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     static final EntityDataAccessor<Float> DATA_FOOD = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
     static final EntityDataAccessor<Float> DATA_WEIGHT = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
     static final EntityDataAccessor<Byte> DATA_AGGRESSION = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
+    static final EntityDataAccessor<Byte> DATA_MOOD = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
+    static final EntityDataAccessor<CompoundTag> DATA_TRUST = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.COMPOUND_TAG);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -137,6 +139,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final RawAnimation DRAIN = RawAnimation.begin().thenLoop("drain");
     private static final RawAnimation SIT = RawAnimation.begin().thenLoop("sit");
     private static final RawAnimation PERCHED = RawAnimation.begin().thenLoop("lurk");
+    private static final RawAnimation STALK = RawAnimation.begin().thenLoop("stalk");
     private static final RawAnimation DEATH = RawAnimation.begin().thenPlayAndHold("death");
     private static final RawAnimation BITE = RawAnimation.begin().thenPlay("bite");
     private static final RawAnimation WEB_SHOOT = RawAnimation.begin().thenPlay("web_shoot");
@@ -190,6 +193,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     final GorewidowStats stats = new GorewidowStats();
     final GorewidowInventory inventory = new GorewidowInventory(this);
     final GorewidowCare care = new GorewidowCare(this);
+    final GorewidowMind mind = new GorewidowMind(this);
+    private int moodSetTick;
     boolean riderSprinting;
 
     public enum WebPurpose { ATTACK, TRAVERSE, PERCH, RIDER }
@@ -237,6 +242,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_FOOD, 100.0F);
         builder.define(DATA_WEIGHT, 0.0F);
         builder.define(DATA_AGGRESSION, (byte) AggressionMode.NEUTRAL.ordinal());
+        builder.define(DATA_MOOD, (byte) GorewidowMind.Mood.STALKING.ordinal());
+        builder.define(DATA_TRUST, new CompoundTag());
     }
 
     @Override
@@ -247,6 +254,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 this.surface = Direction.from3DDataValue(this.entityData.get(DATA_SURFACE));
             } else if (DATA_ROPE_LENGTH.equals(key) && !this.isControlledByLocalInstance()) {
                 this.ropeLength = this.entityData.get(DATA_ROPE_LENGTH);
+            } else if (DATA_TRUST.equals(key)) {
+                this.mind.load(this.entityData.get(DATA_TRUST));
             } else if (DATA_STATS.equals(key)) {
                 this.stats.load(this.entityData.get(DATA_STATS));
             } else if (DATA_WEB_MODE.equals(key)) {
@@ -267,6 +276,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         tag.put("Stats", this.stats.save());
         tag.put("Inventory", this.inventory.createTag(this.registryAccess()));
         this.care.save(tag);
+        tag.put("Trust", this.mind.save());
     }
 
     @Override
@@ -283,6 +293,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.setHarness(true);
         }
         this.care.load(tag);
+        this.mind.load(tag.getCompound("Trust"));
+        this.syncTrust(this.mind.save());
         this.care.applyStats(false);
         this.setCommand(GorewidowCommand.byId(tag.getByte("Command")));
     }
@@ -303,7 +315,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 return GorewidowEntity.this.getCommand() == GorewidowCommand.FOLLOW && super.canUse();
             }
         });
-        this.goalSelector.addGoal(8, new GorewidowAmbushGoal(this));
+        this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowBondGoal(this));
+        this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowOfferingGoal(this));
+        this.goalSelector.addGoal(8, new com.vladosiwe.gorewidow.entity.ai.GorewidowCuriousGoal(this));
+        this.goalSelector.addGoal(8, new com.vladosiwe.gorewidow.entity.ai.GorewidowStalkGoal(this));
+        this.goalSelector.addGoal(9, new GorewidowAmbushGoal(this));
         this.goalSelector.addGoal(9, new WaterAvoidingRandomStrollGoal(this, 0.8) {
             @Override
             public boolean canUse() {
@@ -339,6 +355,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 prey -> !(prey instanceof GorewidowEntity) && prey.getBbWidth() < 2.0F));
     }
 
+    /** Goal selector access for game tests that wire in a single behaviour. */
+    public net.minecraft.world.entity.ai.goal.GoalSelector goalSelector() {
+        return this.goalSelector;
+    }
+
     /** Removes every goal so physics can be exercised deterministically (game tests). */
     public void clearGoalsForTesting() {
         this.goalSelector.removeAllGoals(goal -> true);
@@ -361,7 +382,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.isTame() || this.level().getDifficulty() == Difficulty.PEACEFUL) {
             return false;
         }
-        return !(this.isPacified() && entity.getUUID().equals(this.tamerId));
+        if (this.isPacified() && entity.getUUID().equals(this.tamerId)) {
+            return false;
+        }
+        // hated players are hunted on sight; at night a hungry predator goes for anyone it does not trust
+        float trust = this.mind.trust(entity);
+        return trust <= GorewidowMind.HOSTILE || (this.level().isNight() && trust < 0);
     }
 
     @Override
@@ -538,6 +564,42 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     public boolean isRiderSprinting() {
         return this.riderSprinting;
+    }
+
+    public GorewidowMind getMind() {
+        return this.mind;
+    }
+
+    public GorewidowMind.Mood getMood() {
+        return GorewidowMind.Mood.byId(this.entityData.get(DATA_MOOD));
+    }
+
+    /** Goals call this every tick they are in charge; without them the mood settles back to a baseline. */
+    public void setMood(GorewidowMind.Mood mood) {
+        this.moodSetTick = this.tickCount;
+        if (this.getMood() != mood) {
+            this.entityData.set(DATA_MOOD, (byte) mood.ordinal());
+        }
+    }
+
+    void syncTrust(CompoundTag tag) {
+        this.entityData.set(DATA_TRUST, tag);
+    }
+
+    private void tickMoodBaseline() {
+        if (this.getTarget() != null) {
+            this.setMood(GorewidowMind.Mood.HUNTING);
+        } else if (this.tickCount - this.moodSetTick > 40) {
+            GorewidowMind.Mood baseline;
+            if (this.isTame()) {
+                baseline = this.getOwner() != null && this.mind.trust(this.getOwner()) < 0 ? GorewidowMind.Mood.SULKING : GorewidowMind.Mood.BONDED;
+            } else {
+                baseline = GorewidowMind.Mood.STALKING;
+            }
+            if (this.getMood() != baseline) {
+                this.entityData.set(DATA_MOOD, (byte) baseline.ordinal());
+            }
+        }
     }
 
     /** Pushes the server-side stats to clients. */
@@ -1040,6 +1102,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.pacifiedTicks--;
         }
         this.care.serverTick();
+        this.mind.serverTick();
+        this.tickMoodBaseline();
 
         WebMode mode = this.getWebMode();
         if (mode != WebMode.NONE && this.isDeadOrDying()) {
@@ -1445,6 +1509,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 this.setPerched(false);
             }
             this.care.onHurt(attacker, amount);
+            this.mind.onHurt(attacker);
             if (this.level() instanceof ServerLevel server) {
                 Vec3 p = this.getBodyCenter();
                 server.sendParticles(ModParticles.BLOOD_DROP.get(), p.x, p.y, p.z, Math.min(16, 3 + (int) amount * 2), 0.5, 0.3, 0.5, 0.12);
@@ -1510,7 +1575,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         boolean client = this.level().isClientSide;
 
         if (!this.isTame()) {
-            if (player.isSecondaryUseActive() || stack.is(ModItems.BLOOD_VIAL.get())) {
+            if (player.isSecondaryUseActive() || stack.is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD)) {
                 if (!client) {
                     this.care.offerToFeed(player);
                 }
@@ -1523,7 +1588,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return InteractionResult.PASS;
         }
 
-        if ((stack.is(ModItems.BLOOD_VIAL.get()) || stack.is(Tags.Items.FOODS_RAW_MEAT))
+        if ((stack.is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD) || stack.is(Tags.Items.FOODS_RAW_MEAT))
                 && (this.getHealth() < this.getMaxHealth() || this.getFood() < this.getMaxFood() - 5)) {
             if (!client) {
                 this.care.feedFromHand(player, stack);
@@ -1571,6 +1636,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return false;
         }
         if (this.isVehicle()) {
+            return false;
+        }
+        if (this.mind.trust(player) < -20) {
+            player.displayClientMessage(Component.translatable("message.gorewidow.refuses_ride"), true);
+            this.playSound(ModSounds.HURT.get(), 0.6F, 1.4F);
             return false;
         }
         this.setCommand(GorewidowCommand.FOLLOW);
@@ -1779,7 +1849,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     @Nullable
     @Override
     protected SoundEvent getAmbientSound() {
-        return this.isPerched() ? null : ModSounds.AMBIENT.get();
+        GorewidowMind.Mood mood = this.getMood();
+        return this.isPerched() || mood == GorewidowMind.Mood.STALKING || mood == GorewidowMind.Mood.HIDING ? null : ModSounds.AMBIENT.get();
     }
 
     @Override
@@ -1855,6 +1926,14 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return state.setAndContinue(WEB_PULL);
         }
         float speed = this.clientSpeed;
+        GorewidowMind.Mood mood = this.getMood();
+        if (this.surface == Direction.DOWN && this.onGround() && (mood == GorewidowMind.Mood.STALKING || mood == GorewidowMind.Mood.HIDING)
+                && !this.isTame()) {
+            if (mood == GorewidowMind.Mood.HIDING && speed > 0.12F) {
+                return state.setAndContinue(RUN);
+            }
+            return state.setAndContinue(speed > 0.02F ? STALK : PERCHED);
+        }
         if (this.surface != Direction.DOWN) {
             if (this.isPerched()) {
                 return state.setAndContinue(PERCHED);

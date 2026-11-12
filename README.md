@@ -24,13 +24,39 @@ canopy. They hunt the way spiders do:
 - **Wall and ceiling crawling.** It climbs walls, crosses ceilings and wraps around edges.
 - **Blood drain.** It latches onto webbed or weakened prey, drinks from it and heals itself.
 
+## Mind: trust and mood
+
+Every Gorewidow keeps a **trust** score for each player, from -100 to 100, and a **mood**. Both
+are shown on the info panel.
+
+- **Wild and wary** (the default). It *stalks* you: it creeps after you crouched low and silent,
+  keeping behind you. Look straight at it and it freezes; keep staring and it slinks off into cover
+  where you cannot see it. Turn your back while you are hurt and it strikes. At night it hunts
+  anyone it does not trust.
+- **Earning trust.** Leave bottled blood on the ground and back off; it only comes for it when
+  nobody is standing over it, though crouching quietly nearby is fine. Each offering it drinks
+  is worth +12 trust. Crouching patiently nearby without staring also helps, but only up to 25.
+  Charging at it, staring it down, hitting it (-35) or killing its kind (-50) destroy trust.
+  Hated players are hunted on sight.
+- **Curious** (trust 20+). It drops the act, comes over openly and watches you.
+- **Taming needs trust 40+.** Below that it refuses to feed from you.
+- **Tamed: the opposite.** Trust becomes its **bond** with you. It stays in plain sight, comes up
+  close when you settle down, purrs and shows affection, and greets you when you come back. Good
+  care (food, petting, hand-feeding) builds the bond; starving or hitting it wears it down. A
+  sulking Gorewidow keeps its distance, sometimes ignores orders and whistles, and refuses to be
+  ridden below -20.
+
+Bottled blood means this mod's Blood Vial **and, if installed, Iron's Spells 'n Spellbooks'
+blood vial** (`irons_spellbooks:blood_vial`, via the `gorewidow:blood_food` item tag, no hard
+dependency). Both work for offerings, taming, feeding and cargo.
+
 ## Taming (passive, ARK-style)
 
 Every wild Gorewidow has a **level** (1–30). Its points are spread randomly over health,
 stamina, food, carry weight and melee damage.
 
 1. Craft **Blood Vials**: glass bottle + any raw meat + redstone. Carry them in your inventory.
-2. **Sneak and use** the wild Gorewidow. It latches onto you and drinks one vial every 3 seconds
+2. Once it trusts you (40+), **sneak and use** the wild Gorewidow. It latches onto you and drinks one vial every 3 seconds
    for as long as you stay crouched within reach. Stand up or walk away and it pauses; if you are
    gone for 30 seconds it loses interest.
 3. When the vials run out it drinks **your** blood instead: you take damage, progress grows half
@@ -88,12 +114,12 @@ vials still needed and the bonus levels you would get.
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 10 game tests: clinging, climbing, swing physics, tethering,
-                              # feeding-tame with effectiveness, level-ups, cargo weight and
-                              # eating, riding underneath, draining
+./gradlew runGameTestServer   # 12 game tests: clinging, climbing, swing physics, tethering,
+                              # trust from offerings / hits, feeding-tame with effectiveness,
+                              # level-ups, cargo weight and eating, riding underneath, draining
 ./gradlew runShowcase         # dev only: needs a world in run/saves/showcase; stages every
                               # state and saves screenshots to run/screenshots
-                              # (-Dgorewidow.showcase.ui=true for the interface scenes)
+                              # (-Dgorewidow.showcase.ui=true interface, .mind=true behaviour)
 ```
 
 Screenshots from the real game are in `docs/screenshots/`.

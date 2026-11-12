@@ -31,6 +31,7 @@ neoForge {
             client()
             systemProperty 'gorewidow.showcase', 'true'
             systemProperty 'gorewidow.showcase.ui', System.getProperty('gorewidow.showcase.ui', 'false')
+            systemProperty 'gorewidow.showcase.mind', System.getProperty('gorewidow.showcase.mind', 'false')
             programArguments.addAll '--quickPlaySingleplayer', 'showcase', '--width', '1280', '--height', '720'
         }
         gameTestServer {

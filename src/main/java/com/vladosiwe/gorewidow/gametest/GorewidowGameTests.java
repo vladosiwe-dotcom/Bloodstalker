@@ -165,6 +165,9 @@ public final class GorewidowGameTests {
         player.getInventory().add(new ItemStack(ModItems.BLOOD_VIAL.get(), 32));
         player.setShiftKeyDown(true);
         widow.mobInteract(player, InteractionHand.MAIN_HAND);
+        helper.assertTrue(widow.getTameFeeder() == null && widow.getTamingProgress() == 0, "fed before trusting the player");
+        widow.getMind().addTrust(player, 45.0F);
+        widow.mobInteract(player, InteractionHand.MAIN_HAND);
         helper.succeedWhen(() -> {
             player.moveTo(widow.getX() + 2.5, widow.getY(), widow.getZ());
             player.setShiftKeyDown(true);
@@ -187,11 +190,51 @@ public final class GorewidowGameTests {
         player.moveTo(widow.getX() + 2.5, widow.getY(), widow.getZ());
         player.getInventory().add(new ItemStack(ModItems.BLOOD_VIAL.get(), 8));
         player.setShiftKeyDown(true);
+        widow.getMind().addTrust(player, 45.0F);
         widow.mobInteract(player, InteractionHand.MAIN_HAND);
         widow.hurt(helper.getLevel().damageSources().generic(), 4.0F);
         helper.assertTrue(widow.getTamingEffectiveness() < 100.0F, "effectiveness unchanged: " + widow.getTamingEffectiveness());
         player.discard();
         helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 400)
+    public static void bloodLeftOnTheGroundEarnsTrust(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(4, FLOOR, 8));
+        widow.goalSelector().addGoal(1, new com.vladosiwe.gorewidow.entity.ai.GorewidowOfferingGoal(widow));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.moveTo(helper.absoluteVec(new Vec3(15, FLOOR, 15)));
+        net.minecraft.world.entity.item.ItemEntity offering = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(),
+                helper.absoluteVec(new Vec3(10, FLOOR, 8)).x, helper.absoluteVec(new Vec3(10, FLOOR, 8)).y,
+                helper.absoluteVec(new Vec3(10, FLOOR, 8)).z, new ItemStack(ModItems.BLOOD_VIAL.get()));
+        offering.setThrower(player);
+        helper.getLevel().addFreshEntity(offering);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!offering.isAlive(), "the offering was not taken: widow=" + widow.position().subtract(helper.absoluteVec(Vec3.ZERO))
+                    + " item=" + offering.position().subtract(helper.absoluteVec(Vec3.ZERO)) + " age=" + offering.getAge() + " ground=" + offering.onGround()
+                    + " tag=" + offering.getItem().is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD) + " owner=" + offering.getOwner()
+                    + " goals=" + widow.goalSelector().getAvailableGoals().stream().filter(net.minecraft.world.entity.ai.goal.WrappedGoal::isRunning).map(g -> g.getGoal().getClass().getSimpleName()).toList());
+            helper.assertTrue(widow.getMind().trust(player) >= 12.0F, "trust did not rise: " + widow.getMind().trust(player));
+            player.discard();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60)
+    public static void hittingItDestroysTrustAndItHuntsYou(GameTestHelper helper) {
+        GorewidowEntity widow = helper.spawn(ModEntities.GOREWIDOW.get(), new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.moveTo(widow.getX() + 3, widow.getY(), widow.getZ());
+        widow.hurt(helper.getLevel().damageSources().playerAttack(player), 1.0F);
+        helper.assertTrue(widow.getMind().trust(player) <= com.vladosiwe.gorewidow.entity.GorewidowMind.HOSTILE,
+                "trust after a hit: " + widow.getMind().trust(player));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(widow.getTarget() == player, "it does not hunt the attacker");
+            player.discard();
+        });
     }
 
     @GameTest(template = "arena", timeoutTicks = 60)

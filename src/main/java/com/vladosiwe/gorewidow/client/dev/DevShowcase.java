@@ -73,6 +73,17 @@ public final class DevShowcase {
             return w;
         }
 
+        /** A Gorewidow with its full AI, for behaviour scenes. */
+        GorewidowEntity livingWidow(double x, double y, double z, float yaw) {
+            GorewidowEntity w = ModEntities.GOREWIDOW.get().create(this.level);
+            Vec3 p = this.at(x, y, z);
+            w.moveTo(p.x, p.y, p.z, yaw, 0);
+            w.setPersistenceRequired();
+            this.level.addFreshEntity(w);
+            this.spawned.add(w);
+            return w;
+        }
+
         GorewidowEntity first() {
             return (GorewidowEntity) this.spawned.get(0);
         }
@@ -86,6 +97,10 @@ public final class DevShowcase {
         if (Boolean.getBoolean("gorewidow.showcase.ui")) {
             SCENES.clear();
             defineUiScenes();
+        }
+        if (Boolean.getBoolean("gorewidow.showcase.mind")) {
+            SCENES.clear();
+            defineMindScenes();
         }
         NeoForge.EVENT_BUS.addListener(DevShowcase::onClientTick);
     }
@@ -159,6 +174,28 @@ public final class DevShowcase {
             c.player.moveTo(w.getX() + 1.5, w.getY(), w.getZ(), 0, 0);
             c.player.startRiding(w, true);
         }, c -> {}, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
+    }
+
+    private static void defineMindScenes() {
+        SCENES.add(new Scene("mind_stalking", 34, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            c.player.setShiftKeyDown(false);
+            uiEntityId = c.livingWidow(-7, 0, 9, 200).getId();
+        }, c -> {}, new Vec3(0, 1.6, 0), new Vec3(-2.5, 1.0, 9), false));
+        SCENES.add(new Scene("mind_frozen", 16, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            c.player.setShiftKeyDown(false);
+            uiEntityId = c.livingWidow(0, 0, 9, 180).getId();
+        }, c -> {}, new Vec3(0, 1.6, 0), new Vec3(0, 0.9, 9), false));
+        SCENES.add(new Scene("mind_affection", 110, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            c.player.setShiftKeyDown(false);
+            GorewidowEntity w = c.livingWidow(0, 0, 6, 180);
+            uiEntityId = w.getId();
+            w.tame(c.player);
+            w.getMind().addTrust(c.player, 70);
+            w.setCustomName(net.minecraft.network.chat.Component.literal("Velvet"));
+        }, c -> {}, new Vec3(0, 1.6, 0), new Vec3(0, 0.6, 3), false));
     }
 
     private static void defineUiScenes() {
@@ -252,7 +289,7 @@ public final class DevShowcase {
             Ctx ctx = currentCtx;
             server.execute(() -> scene.perTick().accept(ctx));
         }
-        mc.options.hideGui = !scene.name().startsWith("ui_");
+        mc.options.hideGui = !scene.name().startsWith("ui_") && !scene.name().startsWith("mind_");
         if (scene.name().equals("ui_wheel") && ticks == 12 && mc.level.getEntity(uiEntityId) instanceof GorewidowEntity w) {
             mc.setScreen(new com.vladosiwe.gorewidow.client.gui.RadialMenuScreen(w));
         }
@@ -260,7 +297,18 @@ public final class DevShowcase {
             // park the pointer over an option so the hover highlight shows
             org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), mc.getWindow().getScreenWidth() / 2.0 + 120, mc.getWindow().getScreenHeight() / 2.0 - 60);
         }
+        if (scene.name().startsWith("mind_") && ticks >= scene.settleTicks() - 3 && ticks < scene.settleTicks() && mc.level.getEntity(uiEntityId) instanceof GorewidowEntity w) {
+            // frame the creature exactly so the info panel shows
+            Vec3 d = w.getBoundingBox().getCenter().subtract(mc.player.getEyePosition());
+            float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+            float pitch = (float) -Math.toDegrees(Math.atan2(d.y, d.horizontalDistance()));
+            mc.player.setYRot(yaw);
+            mc.player.setXRot(pitch);
+            mc.player.yRotO = yaw;
+            mc.player.xRotO = pitch;
+        }
         if (ticks == scene.settleTicks()) {
+            LOGGER.info("showcase {}: lookedAt={} crosshair={}", scene.name(), com.vladosiwe.gorewidow.client.gui.GorewidowHud.lookedAt(), mc.crosshairPickEntity);
             String file = "gorewidow_" + String.format("%02d", sceneIndex) + "_" + scene.name() + ".png";
             Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), msg -> LOGGER.info("showcase: {}", msg.getString()));
         }

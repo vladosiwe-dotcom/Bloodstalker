@@ -69,6 +69,11 @@ public final class ModNetwork {
         if (widow == null) {
             return;
         }
+        boolean obeys = widow.getMind().obeys(player);
+        if (!obeys && payload.action() != CreatureActionPayload.Action.PET && payload.action() != CreatureActionPayload.Action.INVENTORY) {
+            player.displayClientMessage(Component.translatable("message.gorewidow.ignores_you"), true);
+            return;
+        }
         switch (payload.action()) {
             case RIDE -> widow.tryMount(player);
             case INVENTORY -> widow.getCare().openInventory(player);
@@ -79,6 +84,7 @@ public final class ModNetwork {
             case NEUTRAL -> aggression(player, widow, AggressionMode.NEUTRAL);
             case PASSIVE -> aggression(player, widow, AggressionMode.PASSIVE);
             case PET -> {
+                widow.getMind().onPet(player);
                 widow.playSound(ModSounds.PURR.get(), 1.0F, 0.9F + widow.getRandom().nextFloat() * 0.2F);
                 widow.triggerAnim("action", "tame");
                 widow.level().broadcastEntityEvent(widow, (byte) 7);
@@ -133,6 +139,9 @@ public final class ModNetwork {
         }
         int count = 0;
         for (GorewidowEntity widow : pack) {
+            if (!widow.getMind().obeys(player)) {
+                continue;
+            }
             switch (payload.order()) {
                 case FOLLOW -> {
                     widow.setCommand(GorewidowCommand.FOLLOW);

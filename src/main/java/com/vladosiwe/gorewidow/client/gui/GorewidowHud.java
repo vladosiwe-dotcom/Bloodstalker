@@ -21,6 +21,11 @@ public final class GorewidowHud {
 
     private GorewidowHud() {}
 
+    @Nullable
+    public static GorewidowEntity lookedAt() {
+        return lookedAt;
+    }
+
     public static void setLookedAt(@Nullable GorewidowEntity widow) {
         lookedAt = widow;
     }
@@ -70,8 +75,10 @@ public final class GorewidowHud {
         Player feeder = widow.getTameFeeder();
         boolean taming_ = !tame && (taming > 0 || feeder != null);
 
-        int w = 190;
-        int lines = 3 + (taming_ ? 4 : 0) + (tame ? 2 : 1);
+        Component wildHint = feeder == player ? Component.translatable("gui.gorewidow.hint_feeding")
+                : Component.translatable("gui.gorewidow.hint_wild");
+        int w = Math.max(190, tame ? 0 : font.width(wildHint) + 12);
+        int lines = 4 + (taming_ ? 4 : 0) + (tame ? 2 : 1);
         int h = 8 + lines * 11;
         int x = screenW / 2 - w / 2;
         int y = 6;
@@ -85,6 +92,17 @@ public final class GorewidowHud {
         UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("stat.gorewidow.health").getString(),
                 UiDraw.num(widow.getHealth()) + "/" + UiDraw.num(widow.getMaxHealth()), widow.getHealth() / widow.getMaxHealth(), UiDraw.HEALTH);
         cy += 16;
+
+        // what it thinks of you, and what it is up to
+        float trust = widow.getMind().trust(player);
+        Component trustLine = Component.translatable(tame ? "gui.gorewidow.bond" : "gui.gorewidow.trust", Math.round(trust),
+                com.vladosiwe.gorewidow.entity.GorewidowMind.trustLabel(trust));
+        int trustColor = trust <= com.vladosiwe.gorewidow.entity.GorewidowMind.HOSTILE ? UiDraw.HEALTH
+                : trust < com.vladosiwe.gorewidow.entity.GorewidowMind.CURIOUS ? 0xFFE0B070 : UiDraw.XP;
+        g.drawString(font, trustLine, x + 6, cy, trustColor, false);
+        String mood = widow.getMood().label().getString();
+        g.drawString(font, mood, x + w - 6 - font.width(mood), cy, UiDraw.TEXT_DIM, false);
+        cy += 11;
 
         if (taming_) {
             UiDraw.labelledBar(g, font, x + 6, cy, w - 12, Component.translatable("gui.gorewidow.taming").getString(),
@@ -110,9 +128,7 @@ public final class GorewidowHud {
             Component hint = mine ? Component.translatable("gui.gorewidow.hint_owner") : Component.translatable("gui.gorewidow.hint_other");
             g.drawString(font, hint, x + 6, cy, 0xFF8FD18A, false);
         } else {
-            Component hint = feeder == player ? Component.translatable("gui.gorewidow.hint_feeding")
-                    : Component.translatable("gui.gorewidow.hint_wild");
-            g.drawString(font, hint, x + 6, cy, feeder == player ? UiDraw.TAMING : 0xFFE0B070, false);
+            g.drawString(font, wildHint, x + 6, cy, feeder == player ? UiDraw.TAMING : 0xFFE0B070, false);
         }
     }
 }

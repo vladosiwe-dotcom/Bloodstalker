@@ -50,6 +50,14 @@ public final class Gorewidow {
         if (widow != null && widow.isTame() && widow != event.getEntity()) {
             widow.getCare().grantXp(Math.max(2.0F, event.getEntity().getMaxHealth() * 0.6F));
         }
+        // Gorewidows remember who kills their kind
+        if (event.getEntity() instanceof GorewidowEntity victim && killer instanceof net.minecraft.world.entity.player.Player player
+                && !victim.level().isClientSide) {
+            for (GorewidowEntity witness : victim.level().getEntitiesOfClass(GorewidowEntity.class, victim.getBoundingBox().inflate(32),
+                    w -> w != victim && w.isAlive())) {
+                witness.getMind().addTrust(player, -50.0F);
+            }
+        }
     }
 
     public static ResourceLocation id(String path) {

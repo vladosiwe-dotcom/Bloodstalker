@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "gorewidow:blood_vial",
+    { "id": "irons_spellbooks:blood_vial", "required": false }
+  ]
+}

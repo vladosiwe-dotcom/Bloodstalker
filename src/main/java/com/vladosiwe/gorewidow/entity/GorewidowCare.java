@@ -126,6 +126,12 @@ public final class GorewidowCare {
             player.displayClientMessage(Component.translatable("message.gorewidow.busy"), true);
             return;
         }
+        float trust = this.widow.mind.trust(player);
+        if (trust < GorewidowMind.TAMING_TRUST) {
+            player.displayClientMessage(Component.translatable("message.gorewidow.no_trust", Math.round(trust), Math.round(GorewidowMind.TAMING_TRUST)), true);
+            this.widow.playSound(ModSounds.SCREECH.get(), 0.5F, 1.6F);
+            return;
+        }
         if (findVial(player.getInventory()) < 0) {
             player.displayClientMessage(Component.translatable("message.gorewidow.needs_vials"), true);
             return;
@@ -226,6 +232,7 @@ public final class GorewidowCare {
         int bonus = bonusLevels(wildLevel, this.widow.getTamingEffectiveness());
         this.widow.stats.addWildPoints(bonus, this.widow.getRandom());
         this.widow.tame(tamer);
+        this.widow.mind.onTamed(tamer);
         this.widow.tamerId = null;
         this.widow.pacifiedTicks = 0;
         this.widow.setTameFeeder(null);
@@ -283,7 +290,7 @@ public final class GorewidowCare {
         GorewidowInventory inv = this.widow.inventory;
         for (int i = 1; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
-            if (stack.is(ModItems.BLOOD_VIAL.get()) && missing >= VIAL_FOOD) {
+            if (stack.is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD) && missing >= VIAL_FOOD) {
                 stack.shrink(1);
                 ItemStack bottle = new ItemStack(Items.GLASS_BOTTLE);
                 if (!inv.canAddItem(bottle) || !inv.addItem(bottle).isEmpty()) {
@@ -317,7 +324,7 @@ public final class GorewidowCare {
 
     /** The owner feeds it by hand: heals and fills its belly. */
     public void feedFromHand(Player player, ItemStack stack) {
-        boolean vial = stack.is(ModItems.BLOOD_VIAL.get());
+        boolean vial = stack.is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD);
         this.widow.setFoodRaw(Math.min(this.widow.getMaxFood(), this.widow.getFood() + (vial ? VIAL_FOOD : MEAT_FOOD)));
         this.widow.heal(vial ? 16.0F : 6.0F);
         if (!player.getAbilities().instabuild) {
@@ -328,6 +335,7 @@ public final class GorewidowCare {
         }
         this.widow.playSound(ModSounds.PURR.get(), 1.0F, 1.0F);
         this.widow.level().broadcastEntityEvent(this.widow, (byte) 7);
+        this.widow.mind.onFedByHand(player);
     }
 
     // ================================================================== stamina
@@ -411,7 +419,7 @@ public final class GorewidowCare {
     // ================================================================== helpers
     static int findVial(Inventory inventory) {
         for (int i = 0; i < inventory.getContainerSize(); i++) {
-            if (inventory.getItem(i).is(ModItems.BLOOD_VIAL.get())) {
+            if (inventory.getItem(i).is(com.vladosiwe.gorewidow.registry.ModTags.BLOOD_FOOD)) {
                 return i;
             }
         }
