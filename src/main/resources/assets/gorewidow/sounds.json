@@ -1,0 +1,176 @@
+{
+  "entity.gorewidow.ambient": {
+    "subtitle": "subtitles.gorewidow.ambient",
+    "sounds": [
+      {
+        "name": "gorewidow:ambient1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:ambient2",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:ambient3",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.hurt": {
+    "subtitle": "subtitles.gorewidow.hurt",
+    "sounds": [
+      {
+        "name": "gorewidow:hurt1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:hurt2",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.death": {
+    "subtitle": "subtitles.gorewidow.death",
+    "sounds": [
+      {
+        "name": "gorewidow:death1",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "entity.gorewidow.step": {
+    "subtitle": "subtitles.gorewidow.step",
+    "sounds": [
+      {
+        "name": "gorewidow:step1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:step2",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:step3",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:step4",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.bite": {
+    "subtitle": "subtitles.gorewidow.bite",
+    "sounds": [
+      {
+        "name": "gorewidow:bite1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:bite2",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.screech": {
+    "subtitle": "subtitles.gorewidow.screech",
+    "sounds": [
+      {
+        "name": "gorewidow:screech1",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "gorewidow:screech2",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "entity.gorewidow.drain": {
+    "subtitle": "subtitles.gorewidow.drain",
+    "sounds": [
+      {
+        "name": "gorewidow:drain1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:drain2",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.purr": {
+    "subtitle": "subtitles.gorewidow.purr",
+    "sounds": [
+      {
+        "name": "gorewidow:purr1",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.leap": {
+    "subtitle": "subtitles.gorewidow.leap",
+    "sounds": [
+      {
+        "name": "gorewidow:leap1",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.land": {
+    "subtitle": "subtitles.gorewidow.land",
+    "sounds": [
+      {
+        "name": "gorewidow:land1",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.web_shoot": {
+    "subtitle": "subtitles.gorewidow.web_shoot",
+    "sounds": [
+      {
+        "name": "gorewidow:web_shoot1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:web_shoot2",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.web_hit": {
+    "subtitle": "subtitles.gorewidow.web_hit",
+    "sounds": [
+      {
+        "name": "gorewidow:web_hit1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:web_hit2",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.web_retract": {
+    "subtitle": "subtitles.gorewidow.web_retract",
+    "sounds": [
+      {
+        "name": "gorewidow:web_retract1",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "entity.gorewidow.web_strain": {
+    "subtitle": "subtitles.gorewidow.web_strain",
+    "sounds": [
+      {
+        "name": "gorewidow:web_strain1",
+        "attenuation_distance": 16
+      },
+      {
+        "name": "gorewidow:web_strain2",
+        "attenuation_distance": 16
+      }
+    ]
+  }
+}

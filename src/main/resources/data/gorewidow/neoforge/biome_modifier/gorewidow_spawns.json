@@ -1,0 +1,18 @@
+{
+  "type": "neoforge:add_spawns",
+  "biomes": {
+    "type": "neoforge:or",
+    "values": [
+      "#minecraft:is_jungle",
+      "#minecraft:is_forest",
+      "#minecraft:is_taiga",
+      "minecraft:lush_caves"
+    ]
+  },
+  "spawners": {
+    "type": "gorewidow:gorewidow",
+    "weight": 6,
+    "minCount": 1,
+    "maxCount": 1
+  }
+}
