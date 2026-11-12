@@ -29,11 +29,27 @@ public final class Gorewidow {
         ModSounds.SOUNDS.register(modBus);
         ModParticles.PARTICLES.register(modBus);
         ModEffects.EFFECTS.register(modBus);
+        com.vladosiwe.gorewidow.registry.ModMenus.MENUS.register(modBus);
 
         modBus.addListener(Gorewidow::onAttributes);
         modBus.addListener(Gorewidow::onSpawnPlacements);
         modBus.addListener(ModNetwork::register);
         NeoForge.EVENT_BUS.addListener(Gorewidow::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(Gorewidow::onLivingDeath);
+    }
+
+    /** Kills made by a tamed Gorewidow, or by its rider, feed it experience. */
+    private static void onLivingDeath(net.neoforged.neoforge.event.entity.living.LivingDeathEvent event) {
+        net.minecraft.world.entity.Entity killer = event.getSource().getEntity();
+        GorewidowEntity widow = null;
+        if (killer instanceof GorewidowEntity w) {
+            widow = w;
+        } else if (killer != null && killer.getVehicle() instanceof GorewidowEntity w) {
+            widow = w;
+        }
+        if (widow != null && widow.isTame() && widow != event.getEntity()) {
+            widow.getCare().grantXp(Math.max(2.0F, event.getEntity().getMaxHealth() * 0.6F));
+        }
     }
 
     public static ResourceLocation id(String path) {

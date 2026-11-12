@@ -83,6 +83,10 @@ public final class DevShowcase {
     public static void enable() {
         LOGGER.info("Gorewidow showcase enabled");
         defineScenes();
+        if (Boolean.getBoolean("gorewidow.showcase.ui")) {
+            SCENES.clear();
+            defineUiScenes();
+        }
         NeoForge.EVENT_BUS.addListener(DevShowcase::onClientTick);
     }
 
@@ -157,6 +161,66 @@ public final class DevShowcase {
         }, c -> {}, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
     }
 
+    private static void defineUiScenes() {
+        SCENES.add(new Scene("ui_taming", 200, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 180);
+            w.getStats().rollWild(w.getRandom());
+            w.getStats().addWildPoints(14, w.getRandom());
+            w.getCare().applyStats(true);
+            c.player.setGameMode(GameType.SURVIVAL);
+            c.player.getInventory().clearContent();
+            c.player.getInventory().add(new net.minecraft.world.item.ItemStack(com.vladosiwe.gorewidow.registry.ModItems.BLOOD_VIAL.get(), 16));
+            c.player.setShiftKeyDown(true);
+            w.mobInteract(c.player, net.minecraft.world.InteractionHand.MAIN_HAND);
+        }, c -> {
+            c.player.setShiftKeyDown(true);
+            if (ticks == 120) {
+                c.first().hurt(c.level.damageSources().generic(), 3.0F);
+            }
+        }, new Vec3(0, 1.4, 2.6), new Vec3(0, 0.9, 0), false));
+        SCENES.add(new Scene("ui_wheel", 30, c -> {
+            c.player.setShiftKeyDown(false);
+            GorewidowEntity w = c.widow(0, 0, 0, 180);
+            c.player.setGameMode(GameType.SURVIVAL);
+            w.tame(c.player);
+            w.setHarness(true);
+            w.setCustomName(net.minecraft.network.chat.Component.literal("Velvet"));
+            uiEntityId = w.getId();
+        }, c -> {}, new Vec3(0, 1.6, 3.2), new Vec3(0, 0.9, 0), false));
+        SCENES.add(new Scene("ui_inventory", 30, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 180);
+            c.player.setGameMode(GameType.SURVIVAL);
+            w.tame(c.player);
+            w.setHarness(true);
+            w.setCustomName(net.minecraft.network.chat.Component.literal("Velvet"));
+            w.getStats().addWildPoints(18, w.getRandom());
+            w.getCare().applyStats(true);
+            w.getCare().grantXp(400);
+            w.getInventory().setItem(1, new net.minecraft.world.item.ItemStack(com.vladosiwe.gorewidow.registry.ModItems.BLOOD_VIAL.get(), 12));
+            w.getInventory().setItem(2, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BEEF, 20));
+            w.getInventory().setItem(3, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STRING, 34));
+            w.getInventory().setItem(6, new net.minecraft.world.item.ItemStack(Blocks.SPRUCE_LOG, 64));
+            w.getCare().setFood(71.0F);
+        }, c -> {
+            if (ticks == 8) {
+                c.first().getCare().openInventory(c.player);
+            }
+        }, new Vec3(0, 1.6, 3.2), new Vec3(0, 0.9, 0), false));
+        SCENES.add(new Scene("ui_mount", 40, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 0);
+            c.player.setGameMode(GameType.CREATIVE);
+            w.tame(c.player);
+            w.setHarness(true);
+            w.setCustomName(net.minecraft.network.chat.Component.literal("Velvet"));
+            w.getInventory().setItem(1, new net.minecraft.world.item.ItemStack(Blocks.COBBLESTONE, 64));
+            c.player.setShiftKeyDown(false);
+            c.player.moveTo(w.getX() + 1.5, w.getY(), w.getZ(), 0, 0);
+            c.player.startRiding(w, true);
+        }, c -> {}, new Vec3(0, 0, 0), new Vec3(0, 0, 0), false));
+    }
+
+    private static int uiEntityId = -1;
+
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         MinecraftServer server = mc.getSingleplayerServer();
@@ -188,6 +252,14 @@ public final class DevShowcase {
             Ctx ctx = currentCtx;
             server.execute(() -> scene.perTick().accept(ctx));
         }
+        mc.options.hideGui = !scene.name().startsWith("ui_");
+        if (scene.name().equals("ui_wheel") && ticks == 12 && mc.level.getEntity(uiEntityId) instanceof GorewidowEntity w) {
+            mc.setScreen(new com.vladosiwe.gorewidow.client.gui.RadialMenuScreen(w));
+        }
+        if (ticks == scene.settleTicks() - 2 && mc.screen != null && scene.name().equals("ui_wheel")) {
+            // park the pointer over an option so the hover highlight shows
+            org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), mc.getWindow().getScreenWidth() / 2.0 + 120, mc.getWindow().getScreenHeight() / 2.0 - 60);
+        }
         if (ticks == scene.settleTicks()) {
             String file = "gorewidow_" + String.format("%02d", sceneIndex) + "_" + scene.name() + ".png";
             Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), msg -> LOGGER.info("showcase: {}", msg.getString()));
@@ -212,6 +284,7 @@ public final class DevShowcase {
             ServerPlayer player = server.getPlayerList().getPlayers().get(0);
             if (currentCtx != null) {
                 player.stopRiding();
+                player.closeContainer();
                 currentCtx.spawned().forEach(m -> m.discard());
             }
             BlockPos base = origin.offset(index * 48, 0, 0);

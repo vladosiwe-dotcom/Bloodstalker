@@ -106,6 +106,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final EntityDataAccessor<Boolean> DATA_HARNESS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Byte> DATA_COMMAND = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Boolean> DATA_PERCHED = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    static final EntityDataAccessor<Integer> DATA_TAME_EFFECTIVENESS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.INT);
+    static final EntityDataAccessor<Integer> DATA_TAMER_ID = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.INT);
+    static final EntityDataAccessor<CompoundTag> DATA_STATS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    static final EntityDataAccessor<Float> DATA_STAMINA = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
+    static final EntityDataAccessor<Float> DATA_FOOD = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
+    static final EntityDataAccessor<Float> DATA_WEIGHT = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
+    static final EntityDataAccessor<Byte> DATA_AGGRESSION = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -176,11 +183,14 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     /** Web shot purpose so goals can react when it lands. */
     private WebPurpose webPurpose = WebPurpose.ATTACK;
 
-    // ------------------------------------------------------------------ taming
-    private int pacifiedTicks;
+    // ------------------------------------------------------------------ taming, stats, inventory (see GorewidowCare)
+    int pacifiedTicks;
     @Nullable
-    private UUID tamerId;
-    private int ticksSinceFed;
+    UUID tamerId;
+    final GorewidowStats stats = new GorewidowStats();
+    final GorewidowInventory inventory = new GorewidowInventory(this);
+    final GorewidowCare care = new GorewidowCare(this);
+    boolean riderSprinting;
 
     public enum WebPurpose { ATTACK, TRAVERSE, PERCH, RIDER }
 
@@ -220,6 +230,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_HARNESS, false);
         builder.define(DATA_COMMAND, (byte) GorewidowCommand.FOLLOW.ordinal());
         builder.define(DATA_PERCHED, false);
+        builder.define(DATA_TAME_EFFECTIVENESS, 1000);
+        builder.define(DATA_TAMER_ID, -1);
+        builder.define(DATA_STATS, new CompoundTag());
+        builder.define(DATA_STAMINA, 150.0F);
+        builder.define(DATA_FOOD, 100.0F);
+        builder.define(DATA_WEIGHT, 0.0F);
+        builder.define(DATA_AGGRESSION, (byte) AggressionMode.NEUTRAL.ordinal());
     }
 
     @Override
@@ -230,6 +247,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 this.surface = Direction.from3DDataValue(this.entityData.get(DATA_SURFACE));
             } else if (DATA_ROPE_LENGTH.equals(key) && !this.isControlledByLocalInstance()) {
                 this.ropeLength = this.entityData.get(DATA_ROPE_LENGTH);
+            } else if (DATA_STATS.equals(key)) {
+                this.stats.load(this.entityData.get(DATA_STATS));
             } else if (DATA_WEB_MODE.equals(key)) {
                 // a fresh line always starts from the server's measured length
                 this.ropeLength = this.entityData.get(DATA_ROPE_LENGTH);
@@ -241,20 +260,31 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putInt("TamingProgress", this.getTamingProgress());
-        tag.putBoolean("Harness", this.hasHarness());
         tag.putByte("Command", (byte) this.getCommand().ordinal());
         if (this.tamerId != null) {
             tag.putUUID("Tamer", this.tamerId);
         }
+        tag.put("Stats", this.stats.save());
+        tag.put("Inventory", this.inventory.createTag(this.registryAccess()));
+        this.care.save(tag);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         this.entityData.set(DATA_TAMING, tag.getInt("TamingProgress"));
-        this.entityData.set(DATA_HARNESS, tag.getBoolean("Harness"));
-        this.setCommand(GorewidowCommand.byId(tag.getByte("Command")));
         this.tamerId = tag.hasUUID("Tamer") ? tag.getUUID("Tamer") : null;
+        if (tag.contains("Stats")) {
+            this.stats.load(tag.getCompound("Stats"));
+        }
+        this.inventory.fromTag(tag.getList("Inventory", net.minecraft.nbt.Tag.TAG_COMPOUND), this.registryAccess());
+        if (tag.getBoolean("Harness") && !this.hasHarness()) {
+            // saves from before the harness lived in the inventory
+            this.setHarness(true);
+        }
+        this.care.load(tag);
+        this.care.applyStats(false);
+        this.setCommand(GorewidowCommand.byId(tag.getByte("Command")));
     }
 
     // ================================================================== goals
@@ -284,9 +314,26 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.goalSelector.addGoal(10, new LookAtPlayerGoal(this, Player.class, 12.0F));
         this.goalSelector.addGoal(11, new RandomLookAroundGoal(this));
 
-        this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));
-        this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this));
-        this.targetSelector.addGoal(3, new HurtByTargetGoal(this).setAlertOthers());
+        this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this) {
+            @Override
+            public boolean canUse() {
+                return GorewidowEntity.this.getAggression() != AggressionMode.PASSIVE && super.canUse();
+            }
+        });
+        this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this) {
+            @Override
+            public boolean canUse() {
+                return GorewidowEntity.this.getAggression() != AggressionMode.PASSIVE && super.canUse();
+            }
+        });
+        this.targetSelector.addGoal(3, new HurtByTargetGoal(this) {
+            @Override
+            public boolean canUse() {
+                return !(GorewidowEntity.this.isTame() && GorewidowEntity.this.getAggression() == AggressionMode.PASSIVE) && super.canUse();
+            }
+        }.setAlertOthers());
+        this.targetSelector.addGoal(6, new NearestAttackableTargetGoal<>(this, net.minecraft.world.entity.Mob.class, 10, true, false,
+                this::isAggressiveTarget));
         this.targetSelector.addGoal(4, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false, this::isHuntablePlayer));
         this.targetSelector.addGoal(5, new NonTameRandomTargetGoal<>(this, Animal.class, false,
                 prey -> !(prey instanceof GorewidowEntity) && prey.getBbWidth() < 2.0F));
@@ -296,6 +343,18 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     public void clearGoalsForTesting() {
         this.goalSelector.removeAllGoals(goal -> true);
         this.targetSelector.removeAllGoals(goal -> true);
+    }
+
+    /** Targets for a tamed Gorewidow set to aggressive: monsters and untamed wildlife, never allies. */
+    private boolean isAggressiveTarget(LivingEntity entity) {
+        if (!this.isTame() || this.getAggression() != AggressionMode.AGGRESSIVE || this.isVehicle() || this.isOrderedToSit()) {
+            return false;
+        }
+        if (entity instanceof net.minecraft.world.entity.OwnableEntity ownable && ownable.getOwnerUUID() != null) {
+            return false;
+        }
+        return (entity instanceof net.minecraft.world.entity.monster.Enemy || entity instanceof Animal) && !(entity instanceof GorewidowEntity)
+                && entity.distanceTo(this) < 16 && !this.isAlliedTo(entity);
     }
 
     private boolean isHuntablePlayer(LivingEntity entity) {
@@ -357,8 +416,29 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         return this.entityData.get(DATA_DRAIN_ID) >= 0;
     }
 
+    /** Raw taming progress, 0..1000. */
     public int getTamingProgress() {
         return this.entityData.get(DATA_TAMING);
+    }
+
+    void setTamingProgress(int progress) {
+        this.entityData.set(DATA_TAMING, Mth.clamp(progress, 0, 1000));
+    }
+
+    void setTamingEffectiveness(int effectiveness) {
+        this.entityData.set(DATA_TAME_EFFECTIVENESS, Mth.clamp(effectiveness, 0, 1000));
+    }
+
+    void setTameFeeder(@Nullable Player player) {
+        this.entityData.set(DATA_TAMER_ID, player == null ? -1 : player.getId());
+    }
+
+    void setStaminaRaw(float value) {
+        this.entityData.set(DATA_STAMINA, value);
+    }
+
+    void setFoodRaw(float value) {
+        this.entityData.set(DATA_FOOD, value);
     }
 
     public boolean hasHarness() {
@@ -366,7 +446,103 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     }
 
     public void setHarness(boolean harness) {
-        this.entityData.set(DATA_HARNESS, harness);
+        this.inventory.setItem(GorewidowInventory.HARNESS_SLOT, harness ? new ItemStack(ModItems.HARNESS.get()) : ItemStack.EMPTY);
+    }
+
+    /** Called by the inventory whenever its contents change. */
+    void onInventoryChanged() {
+        if (!this.level().isClientSide) {
+            boolean harness = !this.inventory.getItem(GorewidowInventory.HARNESS_SLOT).isEmpty();
+            this.entityData.set(DATA_HARNESS, harness);
+            if (!harness && this.isVehicle()) {
+                this.ejectPassengers();
+            }
+            this.entityData.set(DATA_WEIGHT, this.inventory.totalWeight());
+        }
+    }
+
+    public GorewidowInventory getInventory() {
+        return this.inventory;
+    }
+
+    public GorewidowStats getStats() {
+        return this.stats;
+    }
+
+    public GorewidowCare getCare() {
+        return this.care;
+    }
+
+    public int getLevel() {
+        return this.stats.level();
+    }
+
+    public float getStamina() {
+        return this.entityData.get(DATA_STAMINA);
+    }
+
+    public float getMaxStamina() {
+        return (float) this.stats.value(GorewidowStats.Stat.STAMINA);
+    }
+
+    public float getFood() {
+        return this.entityData.get(DATA_FOOD);
+    }
+
+    public float getMaxFood() {
+        return (float) this.stats.value(GorewidowStats.Stat.FOOD);
+    }
+
+    public float getCarriedWeight() {
+        return this.entityData.get(DATA_WEIGHT);
+    }
+
+    public float getMaxWeight() {
+        return (float) this.stats.value(GorewidowStats.Stat.WEIGHT);
+    }
+
+    public boolean isEncumbered() {
+        return this.getCarriedWeight() > this.getMaxWeight();
+    }
+
+    /** Taming effectiveness in percent (0..100). */
+    public float getTamingEffectiveness() {
+        return this.entityData.get(DATA_TAME_EFFECTIVENESS) / 10.0F;
+    }
+
+    /** Taming progress in percent (0..100). */
+    public float getTamingPercent() {
+        return this.entityData.get(DATA_TAMING) / 10.0F;
+    }
+
+    @Nullable
+    public Player getTameFeeder() {
+        int id = this.entityData.get(DATA_TAMER_ID);
+        return id >= 0 && this.level().getEntity(id) instanceof Player player ? player : null;
+    }
+
+    public AggressionMode getAggression() {
+        return AggressionMode.byId(this.entityData.get(DATA_AGGRESSION));
+    }
+
+    public void setAggression(AggressionMode mode) {
+        this.entityData.set(DATA_AGGRESSION, (byte) mode.ordinal());
+        if (mode == AggressionMode.PASSIVE) {
+            this.setTarget(null);
+        }
+    }
+
+    public void setRiderSprinting(boolean sprinting) {
+        this.riderSprinting = sprinting;
+    }
+
+    public boolean isRiderSprinting() {
+        return this.riderSprinting;
+    }
+
+    /** Pushes the server-side stats to clients. */
+    void syncStats() {
+        this.entityData.set(DATA_STATS, this.stats.save());
     }
 
     public GorewidowCommand getCommand() {
@@ -377,6 +553,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.entityData.set(DATA_COMMAND, (byte) command.ordinal());
         this.setOrderedToSit(command == GorewidowCommand.STAY);
         this.setInSittingPose(command == GorewidowCommand.STAY);
+        if (command == GorewidowCommand.WANDER) {
+            this.restrictTo(this.blockPosition(), 20);
+        } else {
+            this.clearRestriction();
+        }
     }
 
     public boolean isPerched() {
@@ -599,6 +780,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     private double surfaceSpeed() {
         double base = this.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        if (this.getControllingPassenger() instanceof Player && this.riderSprinting && this.getStamina() > 1.0F) {
+            base *= 1.3;
+        }
+        if (this.isEncumbered()) {
+            base *= 0.12;
+        }
         return switch (this.surface) {
             case UP -> base * 0.8;
             case DOWN -> base;
@@ -849,10 +1036,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.webCooldown > 0) {
             this.webCooldown--;
         }
-        if (this.pacifiedTicks > 0 && --this.pacifiedTicks == 0) {
-            this.tamerId = null;
+        if (this.pacifiedTicks > 0) {
+            this.pacifiedTicks--;
         }
-        this.tickTamingDecay();
+        this.care.serverTick();
 
         WebMode mode = this.getWebMode();
         if (mode != WebMode.NONE && this.isDeadOrDying()) {
@@ -974,6 +1161,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     private void clientEffects() {
         LivingEntity drained = this.getDrainTarget();
+        if (drained == null) {
+            drained = this.getTameFeeder();
+        }
         if (drained != null && this.tickCount % 2 == 0) {
             // blood pulled from the victim toward the fangs
             Vec3 mouth = this.getMouthPos();
@@ -1221,7 +1411,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.releaseWeb(true);
             return;
         }
-        if (this.webCooldown > 0) {
+        if (this.webCooldown > 0 || !this.care.useStamina(12.0F)) {
             return;
         }
         Vec3 eye = rider.getEyePosition();
@@ -1254,13 +1444,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             if (this.isPerched()) {
                 this.setPerched(false);
             }
-            if (attacker instanceof Player player && !this.isTame() && player.getUUID().equals(this.tamerId)) {
-                // betrayal while being tamed
-                this.pacifiedTicks = 0;
-                this.tamerId = null;
-                this.entityData.set(DATA_TAMING, Math.max(0, this.getTamingProgress() - 30));
-                this.playSound(ModSounds.SCREECH.get(), 1.2F, 0.8F);
-            }
+            this.care.onHurt(attacker, amount);
             if (this.level() instanceof ServerLevel server) {
                 Vec3 p = this.getBodyCenter();
                 server.sendParticles(ModParticles.BLOOD_DROP.get(), p.x, p.y, p.z, Math.min(16, 3 + (int) amount * 2), 0.5, 0.3, 0.5, 0.12);
@@ -1275,9 +1459,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.releaseWeb(false);
             this.stopDrain();
             this.setSurface(Direction.DOWN);
-            if (this.hasHarness()) {
-                this.spawnAtLocation(ModItems.HARNESS.get());
-                this.setHarness(false);
+            for (int i = 0; i < this.inventory.getContainerSize(); i++) {
+                ItemStack stack = this.inventory.removeItemNoUpdate(i);
+                if (!stack.isEmpty()) {
+                    this.spawnAtLocation(stack);
+                }
             }
         }
         super.die(source);
@@ -1324,9 +1510,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         boolean client = this.level().isClientSide;
 
         if (!this.isTame()) {
-            if (stack.is(ModItems.BLOOD_VIAL.get())) {
+            if (player.isSecondaryUseActive() || stack.is(ModItems.BLOOD_VIAL.get())) {
                 if (!client) {
-                    this.feedForTaming(player, stack);
+                    this.care.offerToFeed(player);
                 }
                 return InteractionResult.sidedSuccess(client);
             }
@@ -1337,124 +1523,65 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return InteractionResult.PASS;
         }
 
-        if ((stack.is(ModItems.BLOOD_VIAL.get()) || stack.is(Tags.Items.FOODS_RAW_MEAT)) && this.getHealth() < this.getMaxHealth()) {
+        if ((stack.is(ModItems.BLOOD_VIAL.get()) || stack.is(Tags.Items.FOODS_RAW_MEAT))
+                && (this.getHealth() < this.getMaxHealth() || this.getFood() < this.getMaxFood() - 5)) {
             if (!client) {
-                float amount = stack.is(ModItems.BLOOD_VIAL.get()) ? 16.0F : 6.0F;
-                this.heal(amount);
-                this.consume(player, stack);
-                this.playSound(ModSounds.PURR.get(), 1.0F, 1.0F);
-                this.level().broadcastEntityEvent(this, (byte) 7);
+                this.care.feedFromHand(player, stack);
             }
             return InteractionResult.sidedSuccess(client);
         }
         if (stack.is(ModItems.HARNESS.get()) && !this.hasHarness()) {
             if (!client) {
-                this.setHarness(true);
-                this.consume(player, stack);
+                this.inventory.setItem(GorewidowInventory.HARNESS_SLOT, stack.split(1));
                 this.playSound(net.minecraft.sounds.SoundEvents.HORSE_SADDLE, 1.0F, 0.8F);
             }
             return InteractionResult.sidedSuccess(client);
         }
         if (stack.is(Items.SHEARS) && this.hasHarness() && player.isSecondaryUseActive()) {
             if (!client) {
-                this.setHarness(false);
-                this.spawnAtLocation(ModItems.HARNESS.get());
-                this.ejectPassengers();
+                this.spawnAtLocation(this.inventory.removeItemNoUpdate(GorewidowInventory.HARNESS_SLOT));
+                this.inventory.setChanged();
                 this.playSound(net.minecraft.sounds.SoundEvents.SHEEP_SHEAR, 1.0F, 1.0F);
             }
             return InteractionResult.sidedSuccess(client);
         }
         if (stack.isEmpty()) {
             if (player.isSecondaryUseActive()) {
+                // the option wheel is opened client-side; this is the fallback for a missed key event
                 if (!client) {
-                    GorewidowCommand next = this.getCommand().next();
-                    this.setCommand(next);
-                    this.getNavigation().stop();
-                    this.setTarget(null);
-                    player.displayClientMessage(Component.translatable("message.gorewidow.command", next.label()), true);
+                    this.care.openInventory(player);
                 }
                 return InteractionResult.sidedSuccess(client);
             }
-            if (!this.hasHarness()) {
-                if (!client) {
-                    player.displayClientMessage(Component.translatable("message.gorewidow.needs_harness"), true);
-                }
-                return InteractionResult.sidedSuccess(client);
+            if (!client) {
+                this.tryMount(player);
             }
-            if (!this.isVehicle()) {
-                if (!client) {
-                    this.setCommand(GorewidowCommand.FOLLOW);
-                    this.releaseWeb(false);
-                    this.stopDrain();
-                    this.setPerched(false);
-                    if (player.startRiding(this)) {
-                        this.triggerAnim("action", "mount");
-                    }
-                }
-                return InteractionResult.sidedSuccess(client);
-            }
+            return InteractionResult.sidedSuccess(client);
         }
         return super.mobInteract(player, hand);
     }
 
-    private void consume(Player player, ItemStack stack) {
-        if (!player.getAbilities().instabuild) {
-            ItemStack remainder = stack.getCraftingRemainingItem();
-            stack.shrink(1);
-            if (!remainder.isEmpty() && !player.getInventory().add(remainder)) {
-                player.drop(remainder, false);
-            }
+    /** Mounts the owner if the Gorewidow wears a harness; explains why not otherwise. */
+    public boolean tryMount(Player player) {
+        if (!this.isTame() || !this.isOwnedBy(player)) {
+            return false;
         }
-    }
-
-    private void feedForTaming(Player player, ItemStack stack) {
-        if (this.tamerId != null && !this.tamerId.equals(player.getUUID()) && this.isPacified()) {
-            player.displayClientMessage(Component.translatable("message.gorewidow.busy"), true);
-            return;
+        if (!this.hasHarness()) {
+            player.displayClientMessage(Component.translatable("message.gorewidow.needs_harness"), true);
+            return false;
         }
-        this.consume(player, stack);
-        this.tamerId = player.getUUID();
-        this.pacifiedTicks = 600;
-        this.ticksSinceFed = 0;
-        if (this.getTarget() == player) {
-            this.setTarget(null);
+        if (this.isVehicle()) {
+            return false;
         }
+        this.setCommand(GorewidowCommand.FOLLOW);
+        this.releaseWeb(false);
         this.stopDrain();
-        if (this.getWebMode() == WebMode.TETHER && this.getLinkedEntity() == player) {
-            this.releaseWeb(true);
+        this.setPerched(false);
+        if (player.startRiding(this)) {
+            this.triggerAnim("action", "mount");
+            return true;
         }
-        int gain = 14 + this.random.nextInt(9);
-        int progress = Math.min(100, this.getTamingProgress() + gain);
-        this.entityData.set(DATA_TAMING, progress);
-        this.triggerAnim("action", "bite");
-        this.playSound(ModSounds.DRAIN.get(), 1.0F, 1.2F);
-        if (this.level() instanceof ServerLevel server) {
-            Vec3 m = this.getMouthPos();
-            server.sendParticles(ModParticles.BLOOD_DROP.get(), m.x, m.y, m.z, 8, 0.15, 0.1, 0.15, 0.05);
-        }
-        if (progress >= 100) {
-            this.tame(player);
-            this.setCommand(GorewidowCommand.FOLLOW);
-            this.setTarget(null);
-            this.getNavigation().stop();
-            this.setHealth(this.getMaxHealth());
-            this.triggerAnim("action", "tame");
-            this.playSound(ModSounds.PURR.get(), 1.5F, 1.0F);
-            this.level().broadcastEntityEvent(this, (byte) 7);
-            player.displayClientMessage(Component.translatable("message.gorewidow.tamed"), true);
-        } else {
-            this.level().broadcastEntityEvent(this, (byte) 6);
-            player.displayClientMessage(Component.translatable("message.gorewidow.taming", progress), true);
-        }
-    }
-
-    private void tickTamingDecay() {
-        if (this.isTame() || this.getTamingProgress() <= 0) {
-            return;
-        }
-        if (++this.ticksSinceFed > 1200 && this.tickCount % 40 == 0) {
-            this.entityData.set(DATA_TAMING, this.getTamingProgress() - 1);
-        }
+        return false;
     }
 
     @Override
@@ -1475,12 +1602,30 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     public boolean removeWhenFarAway(double distance) {
-        return !this.isTame() && this.getTamingProgress() == 0 && !this.hasCustomName() && !this.isVehicle();
+        return !this.isTame() && this.getTamingProgress() == 0 && this.tamerId == null && !this.hasCustomName() && !this.isVehicle();
     }
 
     @Override
     public boolean requiresCustomPersistence() {
         return this.isTame() || this.getTamingProgress() > 0 || super.requiresCustomPersistence();
+    }
+
+    @Override
+    public net.minecraft.world.entity.SpawnGroupData finalizeSpawn(net.minecraft.world.level.ServerLevelAccessor level,
+                                                                   net.minecraft.world.DifficultyInstance difficulty,
+                                                                   net.minecraft.world.entity.MobSpawnType spawnType,
+                                                                   @Nullable net.minecraft.world.entity.SpawnGroupData data) {
+        this.stats.rollWild(this.random);
+        this.care.applyStats(true);
+        return super.finalizeSpawn(level, difficulty, spawnType, data);
+    }
+
+    @Override
+    public void onAddedToLevel() {
+        super.onAddedToLevel();
+        if (!this.level().isClientSide) {
+            this.care.applyStats(false);
+        }
     }
 
     // ================================================================== riding
@@ -1581,7 +1726,11 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     protected float getRiddenSpeed(Player rider) {
-        return (float) this.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.1F;
+        float speed = (float) this.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.1F;
+        if (this.riderSprinting && this.getStamina() > 1.0F) {
+            speed *= 1.45F;
+        }
+        return this.isEncumbered() ? speed * 0.12F : speed;
     }
 
     @Override
@@ -1589,16 +1738,20 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (!this.hasHarness()) {
             return;
         }
+        if (this.getStamina() < 8.0F || this.isEncumbered()) {
+            return;
+        }
         this.pendingRiderJump = power >= 90 ? 1.0F : 0.35F + 0.65F * Math.max(0, power) / 90.0F;
     }
 
     @Override
     public boolean canJump() {
-        return this.hasHarness() && !this.isDeadOrDying();
+        return this.hasHarness() && !this.isDeadOrDying() && !this.isEncumbered();
     }
 
     @Override
     public void handleStartJump(int power) {
+        this.care.useStamina(8.0F + 0.16F * Math.max(0, power));
         this.triggerAnim("action", "leap");
         this.playSound(ModSounds.LEAP.get(), 1.0F, 1.0F);
     }
@@ -1688,7 +1841,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.isDeadOrDying()) {
             return state.setAndContinue(DEATH);
         }
-        if (this.isDraining()) {
+        if (this.isDraining() || this.getTameFeeder() != null) {
             return state.setAndContinue(DRAIN);
         }
         WebMode mode = this.getWebMode();

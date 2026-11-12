@@ -151,21 +151,86 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 1200)
+    public static void feedingOnACrouchingPlayerTamesIt(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        widow.getStats().rollWild(widow.getRandom());
+        widow.getCare().applyStats(true);
+        int wildLevel = widow.getStats().wildLevel();
+        int needed = com.vladosiwe.gorewidow.entity.GorewidowCare.requiredVials(wildLevel);
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.moveTo(widow.getX() + 2.5, widow.getY(), widow.getZ());
+        player.getInventory().add(new ItemStack(ModItems.BLOOD_VIAL.get(), 32));
+        player.setShiftKeyDown(true);
+        widow.mobInteract(player, InteractionHand.MAIN_HAND);
+        helper.succeedWhen(() -> {
+            player.moveTo(widow.getX() + 2.5, widow.getY(), widow.getZ());
+            player.setShiftKeyDown(true);
+            helper.assertTrue(widow.isTame(), "still taming: " + widow.getTamingPercent() + "%");
+            helper.assertTrue(player.getUUID().equals(widow.getOwnerUUID()), "wrong owner");
+            int used = 32 - player.getInventory().countItem(ModItems.BLOOD_VIAL.get());
+            helper.assertTrue(used == needed, "expected " + needed + " vials for level " + wildLevel + ", used " + used);
+            helper.assertTrue(widow.getTamingEffectiveness() >= 99.9F, "effectiveness dropped without damage");
+            helper.assertTrue(widow.getLevel() >= wildLevel + com.vladosiwe.gorewidow.entity.GorewidowCare.bonusLevels(wildLevel, 100),
+                    "no bonus levels: " + widow.getLevel());
+            player.discard();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 100)
-    public static void bloodVialsTameIt(GameTestHelper helper) {
+    public static void damageLowersTamingEffectiveness(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.moveTo(widow.getX() + 2.5, widow.getY(), widow.getZ());
+        player.getInventory().add(new ItemStack(ModItems.BLOOD_VIAL.get(), 8));
+        player.setShiftKeyDown(true);
+        widow.mobInteract(player, InteractionHand.MAIN_HAND);
+        widow.hurt(helper.getLevel().damageSources().generic(), 4.0F);
+        helper.assertTrue(widow.getTamingEffectiveness() < 100.0F, "effectiveness unchanged: " + widow.getTamingEffectiveness());
+        player.discard();
+        helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 60)
+    public static void levelsUpAndSpendsStatPoints(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.BLOOD_VIAL.get(), 16));
-        int feeds = 0;
-        while (!widow.isTame() && feeds < 10) {
-            widow.mobInteract(player, InteractionHand.MAIN_HAND);
-            feeds++;
-        }
-        helper.assertTrue(widow.isTame(), "not tamed after " + feeds + " vials (progress " + widow.getTamingProgress() + ")");
-        helper.assertTrue(player.getUUID().equals(widow.getOwnerUUID()), "wrong owner");
-        helper.assertTrue(feeds >= 4, "tamed too easily: " + feeds + " vials");
-        helper.assertTrue(player.getMainHandItem().getCount() == 16 - feeds, "vials were not consumed");
+        widow.tame(player);
+        int level = widow.getLevel();
+        float maxHealth = widow.getMaxHealth();
+        widow.getCare().grantXp(widow.getStats().xpToNext() + 1);
+        helper.assertTrue(widow.getStats().unspent() == 1, "no stat point after level up");
+        helper.assertTrue(widow.getCare().spendPoint(com.vladosiwe.gorewidow.entity.GorewidowStats.Stat.HEALTH), "could not spend");
+        helper.assertTrue(widow.getLevel() == level + 1, "level did not rise");
+        helper.assertTrue(widow.getMaxHealth() > maxHealth, "health point did not raise max health");
+        helper.assertTrue(!widow.getCare().spendPoint(com.vladosiwe.gorewidow.entity.GorewidowStats.Stat.HEALTH), "spent a point it did not have");
         helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
+    public static void heavyCargoEncumbersAndFoodIsEatenFromCargo(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        widow.tame(player);
+        for (int i = 1; i <= 8; i++) {
+            widow.getInventory().setItem(i, new ItemStack(Blocks.STONE, 64));
+        }
+        helper.assertTrue(widow.isEncumbered(), "512 stone should exceed " + widow.getMaxWeight() + ", carrying " + widow.getCarriedWeight());
+        for (int i = 1; i <= 8; i++) {
+            widow.getInventory().setItem(i, ItemStack.EMPTY);
+        }
+        helper.assertTrue(!widow.isEncumbered(), "still encumbered after unloading");
+        widow.getInventory().setItem(5, new ItemStack(ModItems.BLOOD_VIAL.get(), 2));
+        widow.getCare().setFood(10.0F);
+        helper.runAfterDelay(25, () -> {
+            helper.assertTrue(widow.getFood() > 40.0F, "did not eat from its cargo, food=" + widow.getFood());
+            helper.assertTrue(widow.getInventory().countItem(ModItems.BLOOD_VIAL.get()) == 1, "vial was not consumed");
+            helper.assertTrue(widow.getInventory().countItem(net.minecraft.world.item.Items.GLASS_BOTTLE) == 1, "empty bottle not kept");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "arena", timeoutTicks = 100)

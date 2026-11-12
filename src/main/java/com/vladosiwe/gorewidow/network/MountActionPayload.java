@@ -14,7 +14,10 @@ public record MountActionPayload(Action action) implements CustomPacketPayload {
         /** Bite what the rider looks at; on a helpless target this starts draining. */
         BITE,
         /** The riding client already let go of its line (jump-release / landed on a surface). */
-        RELEASE_WEB
+        RELEASE_WEB,
+        /** Sprint key pressed / released while riding. */
+        SPRINT_ON,
+        SPRINT_OFF
     }
 
     public static final Type<MountActionPayload> TYPE = new Type<>(Gorewidow.id("mount_action"));
