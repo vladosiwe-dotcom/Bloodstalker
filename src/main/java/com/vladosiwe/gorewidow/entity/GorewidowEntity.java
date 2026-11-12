@@ -403,6 +403,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
         this.goalSelector.addGoal(1, new SitWhenOrderedToGoal(this));
+        this.goalSelector.addGoal(1, new com.vladosiwe.gorewidow.entity.ai.GorewidowOrderGoal(this));
         this.goalSelector.addGoal(2, new GorewidowDrainGoal(this));
         this.goalSelector.addGoal(3, new GorewidowPounceGoal(this));
         this.goalSelector.addGoal(4, new GorewidowWebPullGoal(this));
@@ -2147,6 +2148,45 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     }
 
     /** Mounts the owner if the Gorewidow wears a harness; explains why not otherwise. */
+    // ================================================================== orders given from outside the saddle
+    @Nullable
+    private net.minecraft.core.BlockPos moveOrder;
+    @Nullable
+    private UUID callOrder;
+
+    /** Whistle: go to that spot (climbing or webbing across as needed), then wait there. */
+    public void orderMoveTo(net.minecraft.core.BlockPos pos) {
+        this.callOrder = null;
+        this.moveOrder = pos.immutable();
+        this.setTarget(null);
+        this.setCommand(GorewidowCommand.FOLLOW);
+        this.setOrderedToSit(false);
+    }
+
+    /** Whistle: come to the owner and take them up. */
+    public void orderCall(Player owner) {
+        this.moveOrder = null;
+        this.callOrder = owner.getUUID();
+        this.setTarget(null);
+        this.setCommand(GorewidowCommand.FOLLOW);
+        this.setOrderedToSit(false);
+    }
+
+    @Nullable
+    public net.minecraft.core.BlockPos getMoveOrder() {
+        return this.moveOrder;
+    }
+
+    @Nullable
+    public Player getCallOrder() {
+        return this.callOrder != null ? this.level().getPlayerByUUID(this.callOrder) : null;
+    }
+
+    public void clearOrders() {
+        this.moveOrder = null;
+        this.callOrder = null;
+    }
+
     public boolean tryMount(Player player) {
         if (!this.isTame() || !(this.isOwnedBy(player) || this.allowsOtherRiders())) {
             return false;

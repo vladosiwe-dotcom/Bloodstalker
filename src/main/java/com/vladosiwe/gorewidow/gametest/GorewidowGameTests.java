@@ -95,6 +95,46 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 700)
+    public static void whistledMoveOrderClimbsToTheSpotAndWaits(GameTestHelper helper) {
+        for (int x = 1; x <= 14; x++) {
+            for (int y = FLOOR; y < FLOOR + 5; y++) {
+                helper.setBlock(new BlockPos(x, y, 10), Blocks.STONE);
+            }
+        }
+        GorewidowEntity widow = helper.spawn(ModEntities.GOREWIDOW.get(), new Vec3(8, FLOOR, 5));
+        @SuppressWarnings("removal")
+        ServerPlayer owner = helper.makeMockServerPlayerInLevel();
+        owner.moveTo(helper.absoluteVec(new Vec3(3, FLOOR, 3)));
+        widow.tame(owner);
+        widow.getMind().addTrust(owner, 60.0F);
+        // the spot pointed at: on top of the wall
+        BlockPos spot = helper.absolutePos(new BlockPos(8, FLOOR + 5, 10));
+        widow.orderMoveTo(spot);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(widow.getMoveOrder() == null, "still on its way");
+            helper.assertTrue(widow.getBodyCenter().distanceTo(Vec3.atCenterOf(spot)) < 3.0, "stopped short of the spot");
+            helper.assertTrue(widow.getCommand() == com.vladosiwe.gorewidow.entity.GorewidowCommand.STAY, "does not wait there");
+            owner.discard();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 500)
+    public static void whistledCallComesAndPicksTheOwnerUp(GameTestHelper helper) {
+        GorewidowEntity widow = helper.spawn(ModEntities.GOREWIDOW.get(), new Vec3(3, FLOOR, 3));
+        @SuppressWarnings("removal")
+        ServerPlayer owner = helper.makeMockServerPlayerInLevel();
+        owner.moveTo(helper.absoluteVec(new Vec3(12, FLOOR, 12)));
+        widow.tame(owner);
+        widow.getMind().addTrust(owner, 60.0F);
+        widow.orderCall(owner);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(owner.getVehicle() == widow, "did not take its owner up");
+            owner.stopRiding();
+            owner.discard();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 200)
     public static void webSwingKeepsTheRopeLength(GameTestHelper helper) {
         for (int x = 6; x <= 10; x++) {

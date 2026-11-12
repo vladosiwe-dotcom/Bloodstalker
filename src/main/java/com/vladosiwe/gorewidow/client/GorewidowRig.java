@@ -171,6 +171,10 @@ public final class GorewidowRig {
     private Vec3 lastLerped;
     private Vec3 positionCorrection = Vec3.ZERO;
     private float sail;
+    private float rideLift;
+    /** Body lift (model px) while carrying a rider, and the extra when the rider looks up. */
+    private static final float RIDE_LIFT = 5.0F;
+    private static final float RIDE_LIFT_LOOK_UP = 5.0F;
     /** Leg roll (deg) that turns the membranes flat while sailing. */
     private static final float SAIL_ROLL = 70.0F;
 
@@ -385,6 +389,13 @@ public final class GorewidowRig {
         this.spread += (spreadTarget - this.spread) * blend;
         this.raise += (raiseTarget - this.raise) * blend * 1.5F;
         this.grip += (gripTarget - this.grip) * blend;
+        // carrying a rider it holds its belly up and away from them, higher still while they look up
+        float liftTarget = 0;
+        if (widow.getControllingPassenger() instanceof net.minecraft.world.entity.player.Player rider && !widow.isWeaponStance()) {
+            float lookUp = Mth.clamp(-rider.getViewXRot(partial) / 60.0F, 0, 1);
+            liftTarget = (RIDE_LIFT + RIDE_LIFT_LOOK_UP * lookUp) * widow.getMountLift(partial);
+        }
+        this.rideLift += (liftTarget - this.rideLift) * blend * 0.6F;
         float sailTarget = !dead && !roped && widow.isGliding() && !widow.onGround() ? 1.0F : 0.0F;
         this.sail += (sailTarget - this.sail) * blend * 0.8F;
 
@@ -423,7 +434,7 @@ public final class GorewidowRig {
             tilt.setRotX(pitch * (1 - rear) + rear * 1.18F);
             tilt.setRotZ(roll * (1 - rear));
             tilt.setRotY(0);
-            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F);
+            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F + this.rideLift);
         }
 
         // ---- neck look

@@ -48,6 +48,8 @@ public final class GorewidowClient {
     public static final KeyMapping KEY_SLINGSHOT = new KeyMapping("key.gorewidow.slingshot", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
     public static final KeyMapping KEY_VISION = new KeyMapping("key.gorewidow.vision", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
     public static final KeyMapping KEY_STANCE = new KeyMapping("key.gorewidow.stance", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY);
+    public static final KeyMapping KEY_WHISTLE_MOVE = new KeyMapping("key.gorewidow.whistle_move", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_U, CATEGORY);
+    public static final KeyMapping KEY_WHISTLE_CALL = new KeyMapping("key.gorewidow.whistle_call", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Y, CATEGORY);
     public static final KeyMapping KEY_CAMERA_TILT = new KeyMapping("key.gorewidow.camera_tilt", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
     private static boolean cameraTilt = true;
     private static float cameraRoll;
@@ -75,6 +77,7 @@ public final class GorewidowClient {
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onRenderPlayerPost);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraDistance);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraAngles);
+        NeoForge.EVENT_BUS.addListener(GorewidowClient::onFov);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onLogout);
         if (Boolean.getBoolean("gorewidow.showcase")) {
             com.vladosiwe.gorewidow.client.dev.DevShowcase.enable();
@@ -106,6 +109,8 @@ public final class GorewidowClient {
         event.register(KEY_VISION);
         event.register(KEY_STANCE);
         event.register(KEY_CAMERA_TILT);
+        event.register(KEY_WHISTLE_MOVE);
+        event.register(KEY_WHISTLE_CALL);
     }
 
     /** Ranged weapons raise the rider into the weapon stance on their own. */
@@ -183,6 +188,12 @@ public final class GorewidowClient {
             }
             while (KEY_WHISTLE_ATTACK.consumeClick()) {
                 whistle(mc, com.vladosiwe.gorewidow.network.WhistlePayload.Order.ATTACK);
+            }
+            while (KEY_WHISTLE_MOVE.consumeClick()) {
+                whistle(mc, com.vladosiwe.gorewidow.network.WhistlePayload.Order.MOVE);
+            }
+            while (KEY_WHISTLE_CALL.consumeClick()) {
+                whistle(mc, com.vladosiwe.gorewidow.network.WhistlePayload.Order.CALL);
             }
         }
 
@@ -355,7 +366,22 @@ public final class GorewidowClient {
         net.minecraft.world.entity.Entity target = order == com.vladosiwe.gorewidow.network.WhistlePayload.Order.ATTACK
                 ? pick(mc, 40.0, e -> e instanceof net.minecraft.world.entity.LivingEntity && e != mc.player)
                 : pick(mc, 24.0, e -> e instanceof GorewidowEntity);
-        PacketDistributor.sendToServer(new com.vladosiwe.gorewidow.network.WhistlePayload(order, target != null ? target.getId() : -1));
+        net.minecraft.core.BlockPos spot = net.minecraft.core.BlockPos.ZERO;
+        if (order == com.vladosiwe.gorewidow.network.WhistlePayload.Order.MOVE) {
+            // the block face the owner points at, up to 64 blocks away
+            net.minecraft.world.entity.Entity cam = mc.getCameraEntity();
+            Vec3 eye = cam.getEyePosition(1.0F);
+            net.minecraft.world.phys.BlockHitResult hit = mc.level.clip(new net.minecraft.world.level.ClipContext(eye,
+                    eye.add(cam.getViewVector(1.0F).scale(64)), net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, cam));
+            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.gorewidow.whistle.no_spot"), true);
+                return;
+            }
+            spot = hit.getBlockPos().relative(hit.getDirection());
+            mc.level.addParticle(net.minecraft.core.particles.ParticleTypes.HAPPY_VILLAGER, spot.getX() + 0.5, spot.getY() + 0.5, spot.getZ() + 0.5, 0, 0, 0);
+        }
+        PacketDistributor.sendToServer(new com.vladosiwe.gorewidow.network.WhistlePayload(order, target != null ? target.getId() : -1, spot));
         if (mc.player != null) {
             mc.player.playSound(net.minecraft.sounds.SoundEvents.NOTE_BLOCK_FLUTE.value(), 0.6F,
                     order == com.vladosiwe.gorewidow.network.WhistlePayload.Order.STAY ? 0.8F : 1.3F);
@@ -387,6 +413,13 @@ public final class GorewidowClient {
         cameraRoll += (target - cameraRoll) * (1 - (float) Math.exp(-6.0F * dt));
         if (Math.abs(cameraRoll) > 0.01F) {
             event.setRoll(event.getRoll() + cameraRoll);
+        }
+    }
+
+    /** A slightly wider field of view while hanging under the mount, to see more around it. */
+    private static void onFov(net.neoforged.neoforge.client.event.ComputeFovModifierEvent event) {
+        if (event.getPlayer().getVehicle() instanceof GorewidowEntity mount && mount.getControllingPassenger() == event.getPlayer()) {
+            event.setNewFovModifier(event.getNewFovModifier() * (1.0F + 0.1F * mount.getMountLift(1.0F)));
         }
     }
 

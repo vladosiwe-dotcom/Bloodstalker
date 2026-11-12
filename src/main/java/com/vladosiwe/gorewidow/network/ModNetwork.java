@@ -22,7 +22,7 @@ public final class ModNetwork {
     private ModNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("2");
+        PayloadRegistrar registrar = event.registrar("3");
         registrar.playToServer(MountActionPayload.TYPE, MountActionPayload.STREAM_CODEC, ModNetwork::handleMountAction);
         registrar.playToServer(SurfaceSyncPayload.TYPE, SurfaceSyncPayload.STREAM_CODEC, ModNetwork::handleSurfaceSync);
         registrar.playToServer(CreatureActionPayload.TYPE, CreatureActionPayload.STREAM_CODEC, ModNetwork::handleCreatureAction);
@@ -158,6 +158,21 @@ public final class ModNetwork {
         }
         Entity looked = level.getEntity(payload.targetId());
         List<GorewidowEntity> pack;
+        if (payload.order() == WhistlePayload.Order.CALL) {
+            // the nearest obedient one in earshot comes over and takes the owner up
+            GorewidowEntity best = null;
+            for (GorewidowEntity w : level.getEntitiesOfClass(GorewidowEntity.class, player.getBoundingBox().inflate(WhistlePayload.RANGE),
+                    w -> w.isTame() && w.isOwnedBy(player) && !w.isVehicle() && !w.isBaby() && w.getMind().obeys(player))) {
+                if (looked == w || best == null || (looked != best && w.distanceToSqr(player) < best.distanceToSqr(player))) {
+                    best = w;
+                }
+            }
+            if (best != null && !player.isPassenger()) {
+                best.orderCall(player);
+            }
+            player.displayClientMessage(Component.translatable("message.gorewidow.whistle.call", best != null ? 1 : 0), true);
+            return;
+        }
         if (payload.order() != WhistlePayload.Order.ATTACK && looked instanceof GorewidowEntity single && single.isOwnedBy(player)) {
             pack = List.of(single);
         } else {
@@ -179,6 +194,13 @@ public final class ModNetwork {
                     widow.getNavigation().stop();
                     widow.setTarget(null);
                 }
+                case MOVE -> {
+                    if (player.distanceToSqr(payload.pos().getCenter()) > 96 * 96) {
+                        continue;
+                    }
+                    widow.orderMoveTo(payload.pos());
+                }
+                case CALL -> { }
                 case ATTACK -> {
                     if (!(looked instanceof LivingEntity target) || target == widow || !target.isAlive() || widow.isAlliedTo(target)
                             || target == player || !widow.canAttack(target)) {
