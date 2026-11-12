@@ -457,6 +457,27 @@ public final class GorewidowGameTests {
     }
 
     @GameTest(template = "arena", timeoutTicks = 120)
+    public static void riderMinesAtFullSpeed(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.moveTo(widow.getX() + 2, widow.getY(), widow.getZ());
+        widow.tame(player);
+        widow.mobInteract(player, InteractionHand.MAIN_HAND);
+        helper.runAfterDelay(GorewidowEntity.MOUNT_TICKS + 4, () -> {
+            helper.assertTrue(player.getVehicle() == widow, "player did not mount");
+            player.setItemInHand(InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
+            helper.assertFalse(player.onGround(), "a hanging rider is not on the ground");
+            // iron pickaxe on stone: 6.0 standing on the ground, vanilla would give 1.2 in the air
+            float speed = player.getDigSpeed(net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), null);
+            helper.assertTrue(speed > 5.9F, "rider mines too slowly: " + speed);
+            player.stopRiding();
+            player.discard();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 120)
     public static void riderHangsUnderTheBelly(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
         @SuppressWarnings("removal")

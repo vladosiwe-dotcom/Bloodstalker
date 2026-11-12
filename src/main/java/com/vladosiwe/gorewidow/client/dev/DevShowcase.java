@@ -174,6 +174,37 @@ public final class DevShowcase {
             c.player.moveTo(w.getX() + 1.5, w.getY(), w.getZ(), 0, 0);
             c.player.startRiding(w, true);
         }, c -> {}, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
+        SCENES.add(new Scene("riding_wall_pov", 70, c -> {
+            // an ore wall: the rider hangs under the mount as it clings to it and mines with a pickaxe
+            c.fill(3, 0, -5, 3, 9, 5, Blocks.STONE.defaultBlockState());
+            c.fill(3, 2, -1, 3, 3, 1, Blocks.IRON_ORE.defaultBlockState());
+            c.fill(3, 4, 1, 3, 4, 2, Blocks.DIAMOND_ORE.defaultBlockState());
+            c.fill(3, 3, -3, 3, 4, -2, Blocks.COAL_ORE.defaultBlockState());
+            GorewidowEntity w = c.widow(1.55, 2.5, 0, 270);
+            w.setSurface(Direction.EAST);
+            c.player.setGameMode(GameType.SURVIVAL);
+            w.tame(c.player);
+            w.setHarness(true);
+            c.player.moveTo(w.getX() - 1.0, w.getY(), w.getZ(), 0, 0);
+            c.player.startRiding(w, true);
+            c.player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE));
+        }, c -> {
+            net.minecraft.client.player.LocalPlayer local = Minecraft.getInstance().player;
+            if (ticks % 10 == 0) {
+                GorewidowEntity sw = c.first();
+                net.minecraft.world.entity.Entity cw = Minecraft.getInstance().level == null ? null : Minecraft.getInstance().level.getEntity(sw.getId());
+                LOGGER.info("wallpov t={} server surface={} pos={} client surface={} pos={} riding={}", ticks, sw.getSurface(), sw.position(),
+                        cw instanceof GorewidowEntity g ? g.getSurface() : null, cw == null ? null : cw.position(), local == null ? null : local.getVehicle());
+            }
+            if (local != null) {
+                // looking along the wall at the ore, so the view banks with the mount
+                local.setYRot(-75);
+                local.setXRot(-5);
+                local.yRotO = -75;
+                local.xRotO = -5;
+            }
+        }, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
         SCENES.add(new Scene("riding_pov", 30, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 0);
             c.player.setGameMode(GameType.CREATIVE);
@@ -592,7 +623,7 @@ public final class DevShowcase {
         sceneIndex = index;
         ticks = 0;
         Scene scene = SCENES.get(index);
-        mc.options.setCameraType(scene.thirdPerson() && !scene.name().equals("riding_pov") ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON);
+        mc.options.setCameraType(scene.thirdPerson() && !scene.name().endsWith("_pov") ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON);
         server.execute(() -> {
             ServerLevel level = server.overworld();
             ServerPlayer player = server.getPlayerList().getPlayers().get(0);

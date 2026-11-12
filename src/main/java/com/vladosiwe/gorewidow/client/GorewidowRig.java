@@ -437,9 +437,17 @@ public final class GorewidowRig {
         }
         net.minecraft.world.phys.AABB grabBox = grabbed != null
                 ? grabbed.getBoundingBox().move(grabbed.getPosition(partial).subtract(grabbed.position())) : null;
+        // seen from the rider's own eyes, a leg planted right next to the camera would fill the view:
+        // such legs are left out of the rider's first-person view (everyone else still sees them)
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        Vec3 riderCamera = mc.player != null && mc.player.getVehicle() == widow && mc.options.getCameraType().isFirstPerson()
+                ? mc.gameRenderer.getMainCamera().getPosition() : null;
         for (int i = 0; i < LEGS; i++) {
             String name = GorewidowAnatomy.LEG_NAMES[i];
             GeoBone coxa = model.getBone(name + "_coxa").orElse(null);
+            if (coxa != null) {
+                coxa.setHidden(riderCamera != null && this.legNearCamera(i, riderCamera));
+            }
             GeoBone femur = model.getBone(name + "_femur").orElse(null);
             GeoBone tibia = model.getBone(name + "_tibia").orElse(null);
             GeoBone tarsus = model.getBone(name + "_tarsus").orElse(null);
@@ -642,6 +650,24 @@ public final class GorewidowRig {
         double ky = femur * Math.sin(ef);
         double et = Math.atan2(ty - ky, tx - kx);
         return new float[]{(float) psi, (float) ef, (float) (et - ef), (float) (te - et)};
+    }
+
+    private boolean legNearCamera(int leg, Vec3 camera) {
+        float[] hip = GorewidowAnatomy.HIP[leg];
+        Vec3 h = this.modelToWorld(hip[0], hip[1], hip[2]);
+        Vec3 f = this.footRender[leg];
+        if (f == null) {
+            return false;
+        }
+        Vec3 knee = h.lerp(f, 0.4).add(new Vec3(this.up).scale(GorewidowAnatomy.HIP_HEIGHT * 0.06 * this.scale));
+        double reach = 0.8 * this.scale;
+        return distanceToSegment(camera, h, knee) < reach || distanceToSegment(camera, knee, f) < reach;
+    }
+
+    private static double distanceToSegment(Vec3 p, Vec3 a, Vec3 b) {
+        Vec3 ab = b.subtract(a);
+        double t = Mth.clamp(p.subtract(a).dot(ab) / Math.max(1.0E-6, ab.lengthSqr()), 0, 1);
+        return p.distanceTo(a.add(ab.scale(t)));
     }
 
     /** Two-bone solve for a clasper, the hand hooked inward at a fixed elevation. */

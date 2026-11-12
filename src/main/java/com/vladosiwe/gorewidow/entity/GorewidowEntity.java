@@ -2235,9 +2235,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         move.accept(passenger, eye.x, eye.y - eyeHeight, eye.z);
     }
 
-    /** Where the rider's eyes sit: under the thorax, between belly and surface. */
+    /**
+     * Where the rider's eyes (and so their first-person view, reach and aim) sit: just ahead of and
+     * below the fangs, so nothing of the mount blocks the view while they mine, build or fight. The
+     * hanging body is drawn separately (see the client rider pose).
+     */
     public Vec3 getRiderEyePos() {
-        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 10.0F, -8.0F);
+        return this.modelToWorld(0, GorewidowAnatomy.BODY_HEIGHT - 17.0F, -23.0F);
     }
 
     @Override

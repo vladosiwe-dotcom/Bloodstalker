@@ -37,6 +37,7 @@ public final class Gorewidow {
         modBus.addListener(Gorewidow::onSpawnPlacements);
         modBus.addListener(ModNetwork::register);
         NeoForge.EVENT_BUS.addListener(Gorewidow::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(Gorewidow::onBreakSpeed);
         NeoForge.EVENT_BUS.addListener(Gorewidow::onLivingDeath);
         com.vladosiwe.gorewidow.dev.DevServerHooks.register();
     }
@@ -77,6 +78,17 @@ public final class Gorewidow {
     }
 
     /** A rider strapped under the belly is shielded from suffocation and fall damage of its mount's acrobatics. */
+    /**
+     * A rider hanging under a Gorewidow is never "on the ground", so vanilla would make them mine five
+     * times slower. They are held firmly by the claspers: undo that penalty (both sides compute it).
+     */
+    private static void onBreakSpeed(net.neoforged.neoforge.event.entity.player.PlayerEvent.BreakSpeed event) {
+        net.minecraft.world.entity.player.Player player = event.getEntity();
+        if (player.getVehicle() instanceof com.vladosiwe.gorewidow.entity.GorewidowEntity && !player.onGround()) {
+            event.setNewSpeed(event.getNewSpeed() * 5.0F);
+        }
+    }
+
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
         // imprint bonus: an imprinted Gorewidow ridden by its imprinter hits harder and takes less
         if (event.getSource().getEntity() instanceof GorewidowEntity attacker

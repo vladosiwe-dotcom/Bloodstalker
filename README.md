@@ -151,8 +151,18 @@ takes 35% less damage and the mount carries 60 more weight.
 | G | Bite what you look at. Biting a webbed or wounded target starts a blood drain that heals the mount |
 | V | Toggle **spider vision** |
 | B | **Weapon stance**: it rears up almost vertically on its hind legs and holds you high up and out in front, cradled in its front legs, so you can shoot, fight and use any item. Turns on by itself when you hold a bow, crossbow or trident, or anything in the `gorewidow:mounted_weapons` tag (for modded guns or staves). It moves at half speed, its web, bite and slingshot are put away, and your projectiles fly past it |
+| N | Tilt the camera with the mount on/off |
 | Sprint key | Sprint (costs stamina) |
 | Shift | Dismount |
+
+**Using it as a work mount.** Hanging under it, you keep your hands free:
+- **Mine and build** from any surface: walls, ceilings, cliff faces. The usual "not on the ground"
+  mining penalty does not apply to its rider, so ore breaks as fast as when you stand.
+- **Use anything**: open your inventory (E), read books, open chests, place blocks, eat. Your
+  first-person view sits just ahead of its fangs, so its head never blocks the view, and a leg
+  planted right next to your eyes is left out of your own view.
+- **Your view banks with it**: on a wall or slope the horizon tilts with the body (up to 50
+  degrees, smoothly). **N** toggles this.
 
 Passives, after ARK's Bloodstalker:
 - **Yanks riders off their mounts.** A wild Gorewidow's web pulls a mounted player out of the saddle.
@@ -188,7 +198,7 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 20 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 21 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts

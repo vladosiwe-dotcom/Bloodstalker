@@ -48,6 +48,10 @@ public final class GorewidowClient {
     public static final KeyMapping KEY_SLINGSHOT = new KeyMapping("key.gorewidow.slingshot", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
     public static final KeyMapping KEY_VISION = new KeyMapping("key.gorewidow.vision", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
     public static final KeyMapping KEY_STANCE = new KeyMapping("key.gorewidow.stance", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY);
+    public static final KeyMapping KEY_CAMERA_TILT = new KeyMapping("key.gorewidow.camera_tilt", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
+    private static boolean cameraTilt = true;
+    private static float cameraRoll;
+    private static long cameraRollTime;
     private static boolean lastSprint;
     private static boolean manualStance;
     private static boolean lastStance;
@@ -70,6 +74,7 @@ public final class GorewidowClient {
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onRenderPlayerPre);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onRenderPlayerPost);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraDistance);
+        NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraAngles);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onLogout);
         if (Boolean.getBoolean("gorewidow.showcase")) {
             com.vladosiwe.gorewidow.client.dev.DevShowcase.enable();
@@ -100,6 +105,7 @@ public final class GorewidowClient {
         event.register(KEY_SLINGSHOT);
         event.register(KEY_VISION);
         event.register(KEY_STANCE);
+        event.register(KEY_CAMERA_TILT);
     }
 
     /** Ranged weapons raise the rider into the weapon stance on their own. */
@@ -201,6 +207,11 @@ public final class GorewidowClient {
             while (KEY_STANCE.consumeClick()) {
                 manualStance = !manualStance;
             }
+            while (KEY_CAMERA_TILT.consumeClick()) {
+                cameraTilt = !cameraTilt;
+                player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
+                        cameraTilt ? "message.gorewidow.camera_tilt_on" : "message.gorewidow.camera_tilt_off"), true);
+            }
             boolean stance = manualStance || isRangedWeapon(player.getMainHandItem()) || isRangedWeapon(player.getOffhandItem());
             if (stance != lastStance) {
                 lastStance = stance;
@@ -241,6 +252,7 @@ public final class GorewidowClient {
             lastStance = false;
             manualStance = false;
             while (KEY_STANCE.consumeClick()) { /* not riding */ }
+            while (KEY_CAMERA_TILT.consumeClick()) { /* not riding */ }
             if (!OUTLINED.isEmpty() && player != null) {
                 updateThreatOutlines(mc, player, false);
             }
@@ -347,6 +359,34 @@ public final class GorewidowClient {
         if (mc.player != null) {
             mc.player.playSound(net.minecraft.sounds.SoundEvents.NOTE_BLOCK_FLUTE.value(), 0.6F,
                     order == com.vladosiwe.gorewidow.network.WhistlePayload.Order.STAY ? 0.8F : 1.3F);
+        }
+    }
+
+    /**
+     * The rider's view banks with the mount: on a wall beside you the horizon tilts toward it, on a
+     * slope it leans with the body. Kept within 50 degrees so the view never flips; N turns it off.
+     */
+    private static void onCameraAngles(net.neoforged.neoforge.client.event.ViewportEvent.ComputeCameraAngles event) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        float target = 0;
+        if (cameraTilt && player != null && mc.getCameraEntity() == player
+                && player.getVehicle() instanceof GorewidowEntity mount && !mount.isWeaponStance()) {
+            GorewidowRig rig = GorewidowRigs.peek(mount);
+            if (rig != null && rig.isInitialised()) {
+                float yaw = (float) event.getYaw() * Mth.DEG_TO_RAD;
+                Vec3 right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
+                double side = Mth.clamp(rig.up().dot(right), -1, 1);
+                float lift = mount.getMountLift((float) event.getPartialTick());
+                target = Mth.clamp((float) Math.toDegrees(Math.asin(side)), -50, 50) * lift;
+            }
+        }
+        long now = net.minecraft.Util.getMillis();
+        float dt = Math.min(0.1F, (now - cameraRollTime) / 1000.0F);
+        cameraRollTime = now;
+        cameraRoll += (target - cameraRoll) * (1 - (float) Math.exp(-6.0F * dt));
+        if (Math.abs(cameraRoll) > 0.01F) {
+            event.setRoll(event.getRoll() + cameraRoll);
         }
     }
 
