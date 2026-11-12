@@ -35,7 +35,25 @@ bones = []  # list of dicts in geo format (parents before children)
 _bone_index = {}
 
 
+# Body parts (not legs) are authored at a compact size and scaled up around the body centre so
+# the cephalothorax / abdomen read with proper mass against the long legs.
+BODY_SCALE = 1.3
+BODY_CENTRE = (0.0, 20.0, 0.0)
+_scaling = False
+
+
+def _sp_force(p):
+    return tuple(c + (v - c) * BODY_SCALE for v, c in zip(p, BODY_CENTRE))
+
+
+def _sp(p):
+    if not _scaling:
+        return tuple(p)
+    return tuple(c + (v - c) * BODY_SCALE for v, c in zip(p, BODY_CENTRE))
+
+
 def bone(name, parent, pivot, rotation=(0, 0, 0)):
+    pivot = _sp(pivot)
     b = {"name": name, "pivot": [round(v, 4) for v in pivot]}
     if parent:
         b["parent"] = parent
@@ -49,6 +67,12 @@ def bone(name, parent, pivot, rotation=(0, 0, 0)):
 
 def cube(bone_name, origin, size, material, rotation=None, pivot=None, inflate=0.0, faces=None):
     """Adds a cube. Origin is the min corner (file coords), size in px."""
+    if _scaling:
+        origin = _sp(origin)
+        size = tuple(v * BODY_SCALE for v in size)
+        if pivot is not None:
+            pivot = _sp(pivot)
+        inflate *= BODY_SCALE
     c = {"origin": [round(v, 4) for v in origin], "size": [round(v, 4) for v in size], "_mat": material}
     if rotation is not None:
         c["rotation"] = [round(r, 4) for r in rotation]
@@ -66,6 +90,7 @@ BODY_Y = 20.0          # body centre height above the surface (px)
 HIP_Y = 19.5
 
 bone("root", None, (0, 0, 0))
+_scaling = True
 bone("tilt", "root", (0, BODY_Y, 0))              # procedural pitch / roll from leg heights
 bone("body", "tilt", (0, BODY_Y, 0))              # keyframed bob / breathing
 
@@ -147,19 +172,21 @@ cube("harness", (-1, 25, -3), (2, 1, 7), "buckle")
 # rider anchor locator (under the belly, used for debugging/attachments)
 bone("rider_anchor", "body", (0, 13, 0))
 
+_scaling = False
+
 # --- legs -------------------------------------------------------------------
 # angle a: degrees from the lateral axis toward the front (+) or back (-)
 LEGS = [
     # idx, hip z, angle, femur, tibia, reach
-    (1, -5.0, 52.0, 19.0, 26.0, 34.0),
-    (2, -2.0, 20.0, 18.0, 24.0, 28.0),
-    (3, 1.0, -14.0, 18.0, 24.0, 28.0),
-    (4, 4.0, -44.0, 20.0, 28.0, 35.0),
+    (1, -6.5, 52.0, 20.0, 27.0, 36.0),
+    (2, -2.6, 20.0, 19.0, 25.0, 30.0),
+    (3, 1.3, -14.0, 19.0, 25.0, 30.0),
+    (4, 5.2, -44.0, 21.0, 29.0, 37.0),
 ]
 COXA = 2.0
 TARSUS = 6.0
 TARSUS_ELEV = -72.0   # tarsus absolute elevation at rest (deg)
-HIP_X = 5.0
+HIP_X = 6.3
 
 leg_records = []
 
@@ -203,7 +230,7 @@ for side, sname in ((1, "l"), (-1, "r")):
         # file rotation z for this side: internal phi = c * elevation, file z == internal z
         bone(name + "_femur", name + "_coxa", fem_pivot, rotation=(0, 0, c * math.degrees(ef)))
         x0 = fem_pivot[0] if sx > 0 else fem_pivot[0] - fl
-        cube(name + "_femur", (x0, fem_pivot[1] - 1.25, fem_pivot[2] - 1.25), (fl, 2.5, 2.5), "leg")
+        cube(name + "_femur", (x0, fem_pivot[1] - 1.4, fem_pivot[2] - 1.4), (fl, 2.8, 2.8), "leg")
         # femur bulge near the hip
         x1 = fem_pivot[0] if sx > 0 else fem_pivot[0] - fl * 0.45
         cube(name + "_femur", (x1, fem_pivot[1] - 1.6, fem_pivot[2] - 1.6), (fl * 0.45, 3.2, 3.2), "carapace")
@@ -214,7 +241,7 @@ for side, sname in ((1, "l"), (-1, "r")):
         tib_pivot = (fem_pivot[0] + sx * fl, fem_pivot[1], fem_pivot[2])
         bone(name + "_tibia", name + "_femur", tib_pivot, rotation=(0, 0, c * math.degrees(et_rel)))
         xt = tib_pivot[0] if sx > 0 else tib_pivot[0] - tl
-        cube(name + "_tibia", (xt, tib_pivot[1] - 1.0, tib_pivot[2] - 1.0), (tl, 2, 2), "leg")
+        cube(name + "_tibia", (xt, tib_pivot[1] - 1.1, tib_pivot[2] - 1.1), (tl, 2.2, 2.2), "leg")
         xj = tib_pivot[0] - 1.4
         cube(name + "_tibia", (xj, tib_pivot[1] - 1.4, tib_pivot[2] - 1.4), (2.8, 2.8, 2.8), "joint")
         # hair tufts on the tibia
@@ -447,9 +474,11 @@ for r in leg_records:
 lines.append("    /** Rest foot positions on the surface plane (y = 0). */")
 lines.append("    public static final float[][] REST_FOOT = {" + ", ".join(rest) + "};")
 lines.append("    /** Spinneret tip (web origin) at rest. */")
-lines.append("    public static final float[] SPINNERET = {0f, 20f, 31f};")
+sp_tip = _bone_index["spinneret"]["pivot"]
+lines.append(f"    public static final float[] SPINNERET = {{0f, {sp_tip[1]}f, {sp_tip[2] + 0.6}f}};")
 lines.append("    /** Mouth / fang position at rest. */")
-lines.append("    public static final float[] MOUTH = {0f, 15f, -14.5f};")
+mouth = _sp_force((0, 15, -14.5))
+lines.append(f"    public static final float[] MOUTH = {{0f, {mouth[1]:.3f}f, {mouth[2]:.3f}f}};")
 lines.append("}")
 os.makedirs(os.path.dirname(JAVA_OUT), exist_ok=True)
 with open(JAVA_OUT, "w") as f:

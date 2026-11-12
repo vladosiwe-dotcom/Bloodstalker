@@ -137,10 +137,17 @@ public final class GorewidowGameTests {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 2));
         Pig pig = helper.spawn(EntityType.PIG, new Vec3(8, FLOOR, 13));
         double startDistance = pig.distanceTo(widow);
-        helper.runAfterDelay(5, () -> widow.shootWeb(pig.position().add(0, pig.getBbHeight() * 0.5, 0), GorewidowEntity.WebPurpose.ATTACK));
+        // a wandering pig can dodge a shot; re-fire like the AI would until the line sticks
+        helper.onEachTick(() -> {
+            if (widow.getWebMode() == WebMode.NONE && pig.distanceTo(widow) > 4.0) {
+                Vec3 aim = pig.position().add(0, pig.getBbHeight() * 0.5, 0);
+                double flight = widow.getSpinneretPos().distanceTo(aim) / GorewidowEntity.WEB_SHOT_SPEED;
+                widow.shootWeb(aim.add(pig.getDeltaMovement().scale(flight)), GorewidowEntity.WebPurpose.ATTACK);
+            }
+        });
         helper.succeedWhen(() -> {
             double now = pig.distanceTo(widow);
-            helper.assertTrue(now < startDistance - 4.0, "pig only moved from " + startDistance + " to " + now);
+            helper.assertTrue(now < startDistance - 4.0, "pig only moved from " + startDistance + " to " + now + ", web=" + widow.getWebMode() + " link=" + widow.getLinkedEntity() + " spinneret=" + widow.getSpinneretPos().subtract(widow.position()));
         });
     }
 

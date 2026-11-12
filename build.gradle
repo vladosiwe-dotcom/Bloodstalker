@@ -26,10 +26,15 @@ neoForge {
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
+        // Development only: loads the "showcase" world, stages every Gorewidow state and saves screenshots.
+        showcase {
+            client()
+            systemProperty 'gorewidow.showcase', 'true'
+            programArguments.addAll '--quickPlaySingleplayer', 'showcase', '--width', '1280', '--height', '720'
+        }
         gameTestServer {
             type = 'gameTestServer'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-            systemProperty 'gorewidow.debug', System.getProperty('gorewidow.debug', 'false')
         }
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'

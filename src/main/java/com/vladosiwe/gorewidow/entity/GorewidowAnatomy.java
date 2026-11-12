@@ -19,14 +19,14 @@ public final class GorewidowAnatomy {
     public static final int[] LEG_CHAIN_SIGN = {-1, -1, -1, -1, 1, 1, 1, 1};
     /** Gait group for the alternating tetrapod gait. */
     public static final int[] LEG_GROUP = {1, 0, 1, 0, 0, 1, 0, 1};
-    public static final float[][] HIP = {{-5.0f, 19.5f, -5.0f}, {-5.0f, 19.5f, -2.0f}, {-5.0f, 19.5f, 1.0f}, {-5.0f, 19.5f, 4.0f}, {5.0f, 19.5f, -5.0f}, {5.0f, 19.5f, -2.0f}, {5.0f, 19.5f, 1.0f}, {5.0f, 19.5f, 4.0f}};
+    public static final float[][] HIP = {{-6.3f, 19.5f, -6.5f}, {-6.3f, 19.5f, -2.6f}, {-6.3f, 19.5f, 1.3f}, {-6.3f, 19.5f, 5.2f}, {6.3f, 19.5f, -6.5f}, {6.3f, 19.5f, -2.6f}, {6.3f, 19.5f, 1.3f}, {6.3f, 19.5f, 5.2f}};
     public static final float[] REST_YAW = {-0.907571f, -0.349066f, 0.244346f, 0.767945f, 0.907571f, 0.349066f, -0.244346f, -0.767945f};
-    public static final float[] FEMUR = {19.0f, 18.0f, 18.0f, 20.0f, 19.0f, 18.0f, 18.0f, 20.0f};
-    public static final float[] TIBIA = {26.0f, 24.0f, 24.0f, 28.0f, 26.0f, 24.0f, 24.0f, 28.0f};
+    public static final float[] FEMUR = {20.0f, 19.0f, 19.0f, 21.0f, 20.0f, 19.0f, 19.0f, 21.0f};
+    public static final float[] TIBIA = {27.0f, 25.0f, 25.0f, 29.0f, 27.0f, 25.0f, 25.0f, 29.0f};
     /** Rest foot positions on the surface plane (y = 0). */
-    public static final float[][] REST_FOOT = {{-25.9325f, 0f, -31.7924f}, {-31.3114f, 0f, -11.5766f}, {-32.1683f, 0f, 7.7738f}, {-30.1769f, 0f, 28.3130f}, {25.9325f, 0f, -31.7924f}, {31.3114f, 0f, -11.5766f}, {32.1683f, 0f, 7.7738f}, {30.1769f, 0f, 28.3130f}};
+    public static final float[][] REST_FOOT = {{-28.4638f, 0f, -34.8684f}, {-34.4908f, 0f, -12.8606f}, {-35.4089f, 0f, 8.5577f}, {-32.9156f, 0f, 30.9024f}, {28.4638f, 0f, -34.8684f}, {34.4908f, 0f, -12.8606f}, {35.4089f, 0f, 8.5577f}, {32.9156f, 0f, 30.9024f}};
     /** Spinneret tip (web origin) at rest. */
-    public static final float[] SPINNERET = {0f, 20f, 31f};
+    public static final float[] SPINNERET = {0f, 20.0f, 40.25f};
     /** Mouth / fang position at rest. */
-    public static final float[] MOUTH = {0f, 15f, -14.5f};
+    public static final float[] MOUTH = {0f, 13.500f, -18.850f};
 }

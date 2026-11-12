@@ -1004,11 +1004,18 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.getWebMode() != WebMode.NONE) {
             this.releaseWeb(false);
         }
-        Vec3 from = this.getSpinneretPos();
-        Vec3 dir = aimPoint.subtract(from);
+        // The glob leaves the body toward the target (the line itself is drawn from the spinneret
+        // bone), so a Gorewidow with its back to a wall never fires into that wall.
+        Vec3 center = this.getBodyCenter();
+        Vec3 dir = aimPoint.subtract(center);
         if (dir.lengthSqr() < 1.0E-4) {
             return false;
         }
+        Vec3 from = center.add(dir.normalize().scale(1.1));
+        if (this.level().clip(new ClipContext(center, from, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) {
+            from = center;
+        }
+        dir = aimPoint.subtract(from);
         WebShotEntity shot = new WebShotEntity(this.level(), this, from, dir.normalize().scale(WEB_SHOT_SPEED));
         this.level().addFreshEntity(shot);
         this.webPurpose = purpose;
@@ -1082,9 +1089,6 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     public void releaseWeb(boolean playSound) {
         if (this.getWebMode() == WebMode.NONE) {
             return;
-        }
-        if (Boolean.getBoolean("gorewidow.debug")) {
-            new Throwable("releaseWeb from mode " + this.getWebMode()).printStackTrace();
         }
         Entity linked = this.getLinkedEntity();
         if (linked instanceof WebShotEntity shot && !this.level().isClientSide) {

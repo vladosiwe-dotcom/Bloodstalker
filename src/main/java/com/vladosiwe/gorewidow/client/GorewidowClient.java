@@ -56,6 +56,9 @@ public final class GorewidowClient {
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onRenderPlayerPost);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraDistance);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onLogout);
+        if (Boolean.getBoolean("gorewidow.showcase")) {
+            com.vladosiwe.gorewidow.client.dev.DevShowcase.enable();
+        }
     }
 
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {

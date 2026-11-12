@@ -22,7 +22,7 @@ public final class WebTargeting {
     public static BlockHitResult findAnchor(GorewidowEntity widow, Vec3 axis, double coneRadians, double minDist, double maxDist,
                                             double minRise, int samples) {
         RandomSource random = widow.getRandom();
-        Vec3 from = widow.getSpinneretPos();
+        Vec3 from = widow.getBodyCenter();
         Vec3 a = axis.normalize();
         Vec3 ref = Math.abs(a.y) < 0.95 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
         Vec3 u = a.cross(ref).normalize();
