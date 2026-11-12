@@ -47,7 +47,10 @@ public final class GorewidowClient {
     public static final KeyMapping KEY_WHISTLE_ATTACK = new KeyMapping("key.gorewidow.whistle_attack", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY);
     public static final KeyMapping KEY_SLINGSHOT = new KeyMapping("key.gorewidow.slingshot", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
     public static final KeyMapping KEY_VISION = new KeyMapping("key.gorewidow.vision", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
+    public static final KeyMapping KEY_STANCE = new KeyMapping("key.gorewidow.stance", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, CATEGORY);
     private static boolean lastSprint;
+    private static boolean manualStance;
+    private static boolean lastStance;
     private static boolean lastGlide;
     private static boolean spiderVision = true;
     private static final Set<net.minecraft.world.entity.Entity> OUTLINED = Collections.newSetFromMap(new java.util.WeakHashMap<>());
@@ -96,6 +99,18 @@ public final class GorewidowClient {
         event.register(KEY_WHISTLE_ATTACK);
         event.register(KEY_SLINGSHOT);
         event.register(KEY_VISION);
+        event.register(KEY_STANCE);
+    }
+
+    /** Ranged weapons raise the rider into the weapon stance on their own. */
+    private static boolean isRangedWeapon(net.minecraft.world.item.ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        net.minecraft.world.item.UseAnim anim = stack.getUseAnimation();
+        return stack.getItem() instanceof net.minecraft.world.item.ProjectileWeaponItem
+                || anim == net.minecraft.world.item.UseAnim.BOW || anim == net.minecraft.world.item.UseAnim.CROSSBOW
+                || anim == net.minecraft.world.item.UseAnim.SPEAR || stack.is(com.vladosiwe.gorewidow.registry.ModTags.MOUNTED_WEAPONS);
     }
 
     private static void registerScreens(net.neoforged.neoforge.client.event.RegisterMenuScreensEvent event) {
@@ -172,15 +187,26 @@ public final class GorewidowClient {
                 player.displayClientMessage(Component.translatable("message.gorewidow.controls",
                         KEY_WEB.getTranslatedKeyMessage(), KEY_BITE.getTranslatedKeyMessage(),
                         KEY_REEL_IN.getTranslatedKeyMessage(), KEY_REEL_OUT.getTranslatedKeyMessage(),
-                        mc.options.keyJump.getTranslatedKeyMessage(), KEY_SLINGSHOT.getTranslatedKeyMessage(), KEY_VISION.getTranslatedKeyMessage()), true);
+                        mc.options.keyJump.getTranslatedKeyMessage(), KEY_SLINGSHOT.getTranslatedKeyMessage(), KEY_VISION.getTranslatedKeyMessage(), KEY_STANCE.getTranslatedKeyMessage()), true);
             }
             while (KEY_WEB.consumeClick()) {
-                PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.WEB));
+                if (!mount.isWeaponStance()) {
+                    PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.WEB));
+                }
             }
             while (KEY_BITE.consumeClick()) {
                 PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.BITE));
             }
             mount.setRiderReel(KEY_REEL_IN.isDown() ? 1.0F : KEY_REEL_OUT.isDown() ? -1.0F : 0.0F);
+            while (KEY_STANCE.consumeClick()) {
+                manualStance = !manualStance;
+            }
+            boolean stance = manualStance || isRangedWeapon(player.getMainHandItem()) || isRangedWeapon(player.getOffhandItem());
+            if (stance != lastStance) {
+                lastStance = stance;
+                mount.setWeaponStance(stance);
+                PacketDistributor.sendToServer(new MountActionPayload(stance ? MountActionPayload.Action.STANCE_ON : MountActionPayload.Action.STANCE_OFF));
+            }
             while (KEY_SLINGSHOT.consumeClick()) {
                 Vec3[] shot = mount.launchSlingshot(player.getLookAngle());
                 if (shot != null) {
@@ -212,6 +238,9 @@ public final class GorewidowClient {
         } else {
             lastSprint = false;
             lastGlide = false;
+            lastStance = false;
+            manualStance = false;
+            while (KEY_STANCE.consumeClick()) { /* not riding */ }
             if (!OUTLINED.isEmpty() && player != null) {
                 updateThreatOutlines(mc, player, false);
             }
@@ -249,6 +278,8 @@ public final class GorewidowClient {
         // while being hauled in on silk the rider swings from upright to strapped-in
         float t = mount.getMountProgress(partial);
         float e = t * t * (3 - 2 * t);
+        float stance = mount.getStanceBlend(partial);
+        e *= 1.0F - stance;
         if (e < 1.0F) {
             rotation = new Quaternionf().slerp(rotation, e);
             offset = offset.scale(e);

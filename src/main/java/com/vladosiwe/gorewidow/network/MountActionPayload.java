@@ -23,7 +23,10 @@ public record MountActionPayload(Action action) implements CustomPacketPayload {
         GLIDE_OFF,
         /** Spider vision toggle (night vision + threat outlines). */
         VISION_ON,
-        VISION_OFF
+        VISION_OFF,
+        /** Weapon stance (rear up, hold the rider forward and up so they can use weapons and items). */
+        STANCE_ON,
+        STANCE_OFF
     }
 
     public static final Type<MountActionPayload> TYPE = new Type<>(Gorewidow.id("mount_action"));

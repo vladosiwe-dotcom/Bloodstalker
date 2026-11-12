@@ -134,6 +134,7 @@ takes 35% less damage and the mount carries 60 more weight.
 | Z / X | Reel the line in / pay it out |
 | G | Bite what you look at. Biting a webbed or wounded target starts a blood drain that heals the mount |
 | V | Toggle **spider vision** |
+| B | **Weapon stance**: it rears up on its hind legs and holds you up and out in front, cradled in its front legs, so you can shoot, fight and use any item. Turns on by itself when you hold a bow, crossbow or trident, or anything in the `gorewidow:mounted_weapons` tag (for modded guns or staves). It moves at half speed, its web, bite and slingshot are put away, and your projectiles fly past it |
 | Sprint key | Sprint (costs stamina) |
 | Shift | Dismount |
 
@@ -169,7 +170,7 @@ Passives, after ARK's Bloodstalker:
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 19 game tests: clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 20 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts

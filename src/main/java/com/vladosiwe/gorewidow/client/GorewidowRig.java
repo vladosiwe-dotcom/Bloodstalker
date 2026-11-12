@@ -397,10 +397,11 @@ public final class GorewidowRig {
             float w = this.ikWeight;
             float pitch = (float) Mth.clamp(Math.atan2(front - back, 2.4) * 0.8, -0.45, 0.45) * w;
             float roll = (float) Mth.clamp(-Math.atan2(left - right, 3.6) * 0.8, -0.4, 0.4) * w;
-            tilt.setRotX(pitch);
-            tilt.setRotZ(roll);
+            float rear = widow.getStanceBlend(partial);
+            tilt.setRotX(pitch * (1 - rear) + rear * 0.78F);
+            tilt.setRotZ(roll * (1 - rear));
             tilt.setRotY(0);
-            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F);
+            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 6.0F);
         }
 
         // ---- neck look
@@ -452,6 +453,14 @@ public final class GorewidowRig {
             pose = mix(pose, new float[]{0, (float) Math.toRadians(78), (float) Math.toRadians(-155), (float) Math.toRadians(-60)}, this.curl);
 
             float[] angles = mix(pose, ik, this.ikWeight);
+            float rearing = widow.getStanceBlend(partial);
+            if (rearing > 0 && idx < 2) {
+                float[] reared = idx == 0
+                        // front pair reaches forward and down, cradling the rider held out in front
+                        ? new float[]{(float) Math.toRadians(-48), (float) Math.toRadians(-5), (float) Math.toRadians(-70), (float) Math.toRadians(-35)}
+                        : new float[]{(float) Math.toRadians(-22), (float) Math.toRadians(10), (float) Math.toRadians(-85), (float) Math.toRadians(-30)};
+                angles = mix(angles, reared, rearing);
+            }
             if (idx == 0) {
                 float[] raised = {(float) Math.toRadians(-18), (float) Math.toRadians(68) + Mth.sin(time * 18) * 0.06F,
                         (float) Math.toRadians(-38), (float) Math.toRadians(-20)};

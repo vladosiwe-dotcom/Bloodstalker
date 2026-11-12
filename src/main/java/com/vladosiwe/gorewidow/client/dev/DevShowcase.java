@@ -222,6 +222,22 @@ public final class DevShowcase {
         mountScene("ride_mount_a", 4 + 9);
         mountScene("ride_mount_b", 4 + 17);
         mountScene("ride_mount_c", 4 + 40);
+        SCENES.add(new Scene("ride_stance", 4 + 40, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 90);
+            ServerPlayer r = makeRider(c.level);
+            r.stopRiding();
+            Vec3 p = c.at(-2.2, 0, 0.3);
+            r.teleportTo(c.level, p.x, p.y, p.z, 90, 0);
+            r.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BOW));
+            w.tame(r);
+        }, c -> {
+            if (ticks == 4) {
+                c.first().tryMount(rider);
+            }
+            if (ticks == 4 + GorewidowEntity.MOUNT_TICKS) {
+                c.first().setWeaponStance(true);
+            }
+        }, new Vec3(-1.5, 2.0, -6.5), new Vec3(-0.8, 1.6, 0), false));
         SCENES.add(new Scene("ride_slingshot", 15, c -> {
             c.fill(-8, 0, 8, 8, 12, 8, Blocks.DEEPSLATE_BRICKS.defaultBlockState());
             c.widow(0, 0, -4, 0);

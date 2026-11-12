@@ -384,6 +384,39 @@ public final class GorewidowGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "arena", timeoutTicks = 140)
+    public static void weaponStanceLiftsTheRiderToShootPastTheMount(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.moveTo(widow.getX() + 2, widow.getY(), widow.getZ());
+        widow.tame(player);
+        widow.tryMount(player);
+        helper.runAfterDelay(GorewidowEntity.MOUNT_TICKS + 2, () -> {
+            double prone = player.getEyeY();
+            widow.setWeaponStance(true);
+            helper.runAfterDelay(15, () -> {
+                double raised = player.getEyeY();
+                helper.assertTrue(raised > widow.getBodyCenter().y + 0.6, "rider not lifted: eye " + (raised - widow.getY()));
+                helper.assertTrue(raised > prone + 1.0, "stance did not raise the rider (" + prone + " -> " + raised + ")");
+                float health = widow.getHealth();
+                net.minecraft.world.entity.projectile.Arrow arrow = new net.minecraft.world.entity.projectile.Arrow(helper.getLevel(), player,
+                        new ItemStack(net.minecraft.world.item.Items.ARROW), null);
+                arrow.setPos(player.getEyePosition());
+                Vec3 aim = widow.getBodyCenter().subtract(player.getEyePosition()).normalize();
+                arrow.shoot(aim.x, aim.y, aim.z, 2.5F, 0.0F);
+                helper.getLevel().addFreshEntity(arrow);
+                helper.runAfterDelay(12, () -> {
+                    helper.assertTrue(widow.getHealth() >= health, "the rider's own arrow hurt the mount");
+                    player.stopRiding();
+                    player.discard();
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 60)
     public static void levelsUpAndSpendsStatPoints(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));

@@ -125,6 +125,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final EntityDataAccessor<Float> DATA_MATURITY = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Byte> DATA_FOLLOW = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Boolean> DATA_ALLOW_RIDERS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_STANCE = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -213,6 +214,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     public static final int DISMOUNT_TICKS = 12;
     public static final float SLINGSHOT_STAMINA = 25.0F;
     private int mountAnim;
+    /** 0..1 blend into the weapon stance (reared up, rider held forward and up). */
+    private float stanceBlend;
+    private float stanceBlendO;
     private int dismountAnim;
     private Vec3 mountFrom = Vec3.ZERO;
     private Vec3 dismountAt = Vec3.ZERO;
@@ -288,6 +292,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_MATURITY, 1.0F);
         builder.define(DATA_FOLLOW, (byte) GorewidowNursery.FollowDistance.MEDIUM.ordinal());
         builder.define(DATA_ALLOW_RIDERS, false);
+        builder.define(DATA_STANCE, false);
     }
 
     @Override
@@ -640,6 +645,29 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     public boolean isRiderSprinting() {
         return this.riderSprinting;
+    }
+
+    // ---- weapon stance
+    /**
+     * Weapon stance: the Gorewidow rears up on its hind legs and holds its rider out in front at
+     * shoulder height so they can shoot, swing and use items. Its own attacks are put away meanwhile.
+     */
+    public boolean isWeaponStance() {
+        return this.entityData.get(DATA_STANCE);
+    }
+
+    public void setWeaponStance(boolean stance) {
+        this.entityData.set(DATA_STANCE, stance);
+    }
+
+    public float getStanceBlend(float partialTick) {
+        float b = Mth.lerp(partialTick, this.stanceBlendO, this.stanceBlend);
+        return b * b * (3 - 2 * b);
+    }
+
+    /** Where the rider's eyes are held in the stance: forward of the head, well above the ground. */
+    public Vec3 getStanceEyePos() {
+        return this.modelToWorld(0, 36.0F, -26.0F);
     }
 
     // ---- breeding, babies, ARK options
@@ -1311,6 +1339,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     @Override
     public void tick() {
         super.tick();
+        this.stanceBlendO = this.stanceBlend;
+        boolean stance = this.isWeaponStance() && this.getFirstPassenger() instanceof Player && !this.isMounting();
+        this.stanceBlend = Mth.clamp(this.stanceBlend + (stance ? 0.12F : -0.15F), 0.0F, 1.0F);
         if (this.mountAnim > 0) {
             this.mountAnim--;
         }
@@ -1469,7 +1500,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     /** Controlling side: fires the slingshot and applies the launch. Returns the anchors to report, or null. */
     @Nullable
     public Vec3[] launchSlingshot(Vec3 lookDir) {
-        if (this.slingCooldown > 0 || this.getStamina() < SLINGSHOT_STAMINA || this.isEncumbered() || this.mountAnim > 0) {
+        if (this.slingCooldown > 0 || this.getStamina() < SLINGSHOT_STAMINA || this.isEncumbered() || this.mountAnim > 0
+                || this.isWeaponStance()) {
             return null;
         }
         Vec3[] result = this.computeSlingshot(lookDir);
@@ -1810,6 +1842,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** A rider-commanded bite at whatever the rider is looking at. */
     public void riderBite(Player rider) {
+        if (this.isWeaponStance()) {
+            return;
+        }
         if (this.isDraining()) {
             this.stopDrain();
             return;
@@ -1842,6 +1877,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     /** A rider-commanded web shot along the rider's crosshair, or release of the current line. */
     public void riderWeb(Player rider) {
+        if (this.isWeaponStance()) {
+            return;
+        }
         if (this.getWebMode() != WebMode.NONE) {
             this.releaseWeb(true);
             return;
@@ -2126,6 +2164,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return;
         }
         Vec3 eye = this.getRiderEyePos();
+        float stance = this.getStanceBlend(1.0F);
+        if (stance > 0) {
+            eye = eye.lerp(this.getStanceEyePos(), stance);
+        }
         double eyeHeight = passenger.getEyeHeight();
         if (this.mountAnim > 0) {
             // being hauled in on silk: from where the rider stood, swung in under the belly
@@ -2219,7 +2261,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     protected float getRiddenSpeed(Player rider) {
-        float speed = (float) this.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.1F;
+        float speed = (float) this.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.1F * (1.0F - 0.5F * this.getStanceBlend(1.0F));
         if (this.riderSprinting && this.getStamina() > 1.0F) {
             speed *= 1.45F;
         }
@@ -2284,6 +2326,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.riderSprinting = false;
             if (!this.level().isClientSide) {
                 this.entityData.set(DATA_GLIDING, false);
+                this.entityData.set(DATA_STANCE, false);
                 this.triggerAnim("action", "dismount");
                 this.playSound(ModSounds.WEB_RETRACT.get(), 0.8F, 1.2F);
                 if (player.hasEffect(MobEffects.NIGHT_VISION) && player.getEffect(MobEffects.NIGHT_VISION).isAmbient()) {

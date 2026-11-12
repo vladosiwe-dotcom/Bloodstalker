@@ -12,5 +12,8 @@ public final class ModTags {
      */
     public static final TagKey<Item> BLOOD_FOOD = TagKey.create(Registries.ITEM, Gorewidow.id("blood_food"));
 
+    /** Extra items (modded guns, staves...) that put a rider into the weapon stance automatically. */
+    public static final TagKey<Item> MOUNTED_WEAPONS = TagKey.create(Registries.ITEM, Gorewidow.id("mounted_weapons"));
+
     private ModTags() {}
 }

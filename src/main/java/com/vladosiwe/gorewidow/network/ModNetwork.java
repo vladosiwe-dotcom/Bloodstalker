@@ -46,6 +46,8 @@ public final class ModNetwork {
             case GLIDE_OFF -> mount.setRiderGliding(false);
             case VISION_ON -> mount.setRiderVision(true);
             case VISION_OFF -> mount.setRiderVision(false);
+            case STANCE_ON -> mount.setWeaponStance(true);
+            case STANCE_OFF -> mount.setWeaponStance(false);
         }
     }
 
