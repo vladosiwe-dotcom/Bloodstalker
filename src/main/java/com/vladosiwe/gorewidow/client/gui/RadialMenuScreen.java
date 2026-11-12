@@ -31,9 +31,7 @@ public class RadialMenuScreen extends Screen {
     @Override
     protected void init() {
         this.options.clear();
-        if (this.widow.hasHarness()) {
-            this.options.add(new Option(Action.RIDE, Component.translatable("gui.gorewidow.ride"), false));
-        }
+        this.options.add(new Option(Action.RIDE, Component.translatable("gui.gorewidow.ride"), false));
         this.options.add(new Option(Action.INVENTORY, Component.translatable("gui.gorewidow.inventory"), false));
         GorewidowCommand command = this.widow.getCommand();
         this.options.add(new Option(Action.FOLLOW, GorewidowCommand.FOLLOW.label(), command == GorewidowCommand.FOLLOW));

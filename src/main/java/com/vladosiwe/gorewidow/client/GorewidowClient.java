@@ -45,7 +45,12 @@ public final class GorewidowClient {
     public static final KeyMapping KEY_WHISTLE_FOLLOW = new KeyMapping("key.gorewidow.whistle_follow", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, CATEGORY);
     public static final KeyMapping KEY_WHISTLE_STAY = new KeyMapping("key.gorewidow.whistle_stay", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, CATEGORY);
     public static final KeyMapping KEY_WHISTLE_ATTACK = new KeyMapping("key.gorewidow.whistle_attack", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY);
+    public static final KeyMapping KEY_SLINGSHOT = new KeyMapping("key.gorewidow.slingshot", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, CATEGORY);
+    public static final KeyMapping KEY_VISION = new KeyMapping("key.gorewidow.vision", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, CATEGORY);
     private static boolean lastSprint;
+    private static boolean lastGlide;
+    private static boolean spiderVision = true;
+    private static final Set<net.minecraft.world.entity.Entity> OUTLINED = Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /** Players whose render pose we pushed in RenderPlayerEvent.Pre and must pop in Post. */
     private static final Set<Player> POSED = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -88,6 +93,8 @@ public final class GorewidowClient {
         event.register(KEY_WHISTLE_FOLLOW);
         event.register(KEY_WHISTLE_STAY);
         event.register(KEY_WHISTLE_ATTACK);
+        event.register(KEY_SLINGSHOT);
+        event.register(KEY_VISION);
     }
 
     private static void registerScreens(net.neoforged.neoforge.client.event.RegisterMenuScreensEvent event) {
@@ -164,7 +171,7 @@ public final class GorewidowClient {
                 player.displayClientMessage(Component.translatable("message.gorewidow.controls",
                         KEY_WEB.getTranslatedKeyMessage(), KEY_BITE.getTranslatedKeyMessage(),
                         KEY_REEL_IN.getTranslatedKeyMessage(), KEY_REEL_OUT.getTranslatedKeyMessage(),
-                        mc.options.keyJump.getTranslatedKeyMessage()), true);
+                        mc.options.keyJump.getTranslatedKeyMessage(), KEY_SLINGSHOT.getTranslatedKeyMessage(), KEY_VISION.getTranslatedKeyMessage()), true);
             }
             while (KEY_WEB.consumeClick()) {
                 PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.WEB));
@@ -173,6 +180,28 @@ public final class GorewidowClient {
                 PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.BITE));
             }
             mount.setRiderReel(KEY_REEL_IN.isDown() ? 1.0F : KEY_REEL_OUT.isDown() ? -1.0F : 0.0F);
+            while (KEY_SLINGSHOT.consumeClick()) {
+                Vec3[] shot = mount.launchSlingshot(player.getLookAngle());
+                if (shot != null) {
+                    PacketDistributor.sendToServer(new com.vladosiwe.gorewidow.network.SlingshotPayload(shot[0].toVector3f(), shot[1].toVector3f()));
+                } else {
+                    player.playSound(net.minecraft.sounds.SoundEvents.DISPENSER_FAIL, 0.4F, 1.6F);
+                }
+            }
+            while (KEY_VISION.consumeClick()) {
+                spiderVision = !spiderVision;
+                mount.setRiderVision(spiderVision);
+                PacketDistributor.sendToServer(new MountActionPayload(spiderVision ? MountActionPayload.Action.VISION_ON : MountActionPayload.Action.VISION_OFF));
+                player.displayClientMessage(Component.translatable(spiderVision ? "message.gorewidow.vision_on" : "message.gorewidow.vision_off"), true);
+            }
+            boolean glide = mc.options.keyJump.isDown() && !mount.onGround() && mount.isOnFloor() && !mount.getWebMode().isRope()
+                    && mount.getStamina() > 1.0F && mount.getDeltaMovement().y < 0;
+            mount.setRiderGliding(glide);
+            if (glide != lastGlide) {
+                lastGlide = glide;
+                PacketDistributor.sendToServer(new MountActionPayload(glide ? MountActionPayload.Action.GLIDE_ON : MountActionPayload.Action.GLIDE_OFF));
+            }
+            updateThreatOutlines(mc, player, spiderVision);
             boolean sprint = mc.options.keySprint.isDown() && mount.getStamina() > 1.0F;
             mount.setRiderSprinting(sprint);
             if (sprint != lastSprint) {
@@ -181,6 +210,12 @@ public final class GorewidowClient {
             }
         } else {
             lastSprint = false;
+            lastGlide = false;
+            if (!OUTLINED.isEmpty() && player != null) {
+                updateThreatOutlines(mc, player, false);
+            }
+            while (KEY_SLINGSHOT.consumeClick()) { /* not riding */ }
+            while (KEY_VISION.consumeClick()) { /* not riding */ }
             lastMount = null;
             while (KEY_WEB.consumeClick()) { /* not riding: discard */ }
             while (KEY_BITE.consumeClick()) { /* not riding: discard */ }
@@ -210,6 +245,13 @@ public final class GorewidowClient {
         float bodyYaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot) * Mth.DEG_TO_RAD;
         Vec3 facing = new Vec3(-Mth.sin(bodyYaw), 0, Mth.cos(bodyYaw));
         Quaternionf rotation = rotationBetweenFrames(facing, new Vec3(0, 1, 0), up.reverse(), fwd);
+        // while being hauled in on silk the rider swings from upright to strapped-in
+        float t = mount.getMountProgress(partial);
+        float e = t * t * (3 - 2 * t);
+        if (e < 1.0F) {
+            rotation = new Quaternionf().slerp(rotation, e);
+            offset = offset.scale(e);
+        }
 
         PoseStack pose = event.getPoseStack();
         pose.pushPose();
@@ -233,6 +275,31 @@ public final class GorewidowClient {
         Matrix3f b = new Matrix3f((float) b1.x, (float) b1.y, (float) b1.z, (float) b2.x, (float) b2.y, (float) b2.z,
                 (float) b3.x, (float) b3.y, (float) b3.z);
         return b.mul(a.transpose()).getNormalizedRotation(new Quaternionf());
+    }
+
+    /** Spider vision: hostile things around the rider glow through walls (client-side only). */
+    private static void updateThreatOutlines(Minecraft mc, Player player, boolean enabled) {
+        java.util.Set<net.minecraft.world.entity.Entity> now = Collections.newSetFromMap(new IdentityHashMap<>());
+        if (enabled && mc.level != null) {
+            for (net.minecraft.world.entity.Entity e : mc.level.getEntities(player, player.getBoundingBox().inflate(40),
+                    e -> e instanceof net.minecraft.world.entity.Mob mob && !(e == player.getVehicle())
+                            && (e instanceof net.minecraft.world.entity.monster.Enemy || mob.getTarget() == player
+                            || (e instanceof GorewidowEntity w && !w.isTame())))) {
+                now.add(e);
+            }
+        }
+        for (net.minecraft.world.entity.Entity old : new java.util.ArrayList<>(OUTLINED)) {
+            if (!now.contains(old)) {
+                old.setGlowingTag(false);
+                OUTLINED.remove(old);
+            }
+        }
+        for (net.minecraft.world.entity.Entity e : now) {
+            if (!e.hasGlowingTag()) {
+                e.setGlowingTag(true);
+            }
+            OUTLINED.add(e);
+        }
     }
 
     private static void whistle(Minecraft mc, com.vladosiwe.gorewidow.network.WhistlePayload.Order order) {

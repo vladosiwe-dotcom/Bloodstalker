@@ -22,8 +22,13 @@ public final class ModItems {
     public static final DeferredItem<BloodVialItem> BLOOD_VIAL = ITEMS.registerItem("blood_vial", BloodVialItem::new,
             new Item.Properties().stacksTo(16).craftRemainder(Items.GLASS_BOTTLE));
     /** Rider harness; required to mount a tamed Gorewidow. */
-    public static final DeferredItem<Item> HARNESS = ITEMS.registerSimpleItem("gorewidow_harness",
-            new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON));
+    /** Optional rider harness: protects the rider and adds carry weight. A Gorewidow can be ridden without it. */
+    public static final DeferredItem<Item> HARNESS = ITEMS.registerItem("gorewidow_harness", props -> new Item(props) {
+        @Override
+        public void appendHoverText(ItemStack stack, TooltipContext context, java.util.List<Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
+            tooltip.add(Component.translatable("item.gorewidow.gorewidow_harness.tooltip").withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+    }, new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON));
     public static final DeferredItem<DeferredSpawnEggItem> SPAWN_EGG = ITEMS.register("gorewidow_spawn_egg", () ->
             new DeferredSpawnEggItem(ModEntities.GOREWIDOW, 0x1E080A, 0xB3121E, new Item.Properties()));
 

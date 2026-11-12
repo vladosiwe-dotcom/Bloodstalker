@@ -201,6 +201,12 @@ write_json({"parent": "minecraft:item/template_spawn_egg"}, A, "models/item/gore
 
 # ------------------------------------------------------------------ language
 en = {
+    "key.gorewidow.slingshot": "Web slingshot",
+    "key.gorewidow.vision": "Toggle spider vision",
+    "message.gorewidow.vision_on": "Spider vision: on",
+    "message.gorewidow.vision_off": "Spider vision: off",
+    "message.gorewidow.drinks_pack": "Badly hurt, it drinks a blood vial from your pack.",
+    "message.gorewidow.drinks_rider": "Badly hurt, it is drinking YOUR blood! Carry blood vials.",
     "mood.gorewidow.stalking": "Stalking",
     "mood.gorewidow.hiding": "Hiding",
     "mood.gorewidow.curious": "Curious",
@@ -272,6 +278,7 @@ en = {
     "item.gorewidow.blood_vial": "Blood Vial",
     "item.gorewidow.blood_vial.tooltip": "Offer it to a Gorewidow to calm and tame it.",
     "item.gorewidow.gorewidow_harness": "Gorewidow Harness",
+    "item.gorewidow.gorewidow_harness.tooltip": "Optional. Rider takes 35% less damage; +60 carry weight.",
     "item.gorewidow.gorewidow_spawn_egg": "Gorewidow Spawn Egg",
     "itemGroup.gorewidow": "Gorewidow",
     "effect.gorewidow.webbed": "Webbed",
@@ -290,7 +297,7 @@ en = {
     "message.gorewidow.command.follow": "Follow",
     "message.gorewidow.command.stay": "Stay",
     "message.gorewidow.command.wander": "Wander",
-    "message.gorewidow.controls": "[%s] web  [%s] bite  [%s]/[%s] reel  [%s] leap / let go",
+    "message.gorewidow.controls": "[%s] web  [%s] bite  [%s]/[%s] reel  [%s] leap, hold: parachute  [%s] slingshot  [%s] vision",
     "subtitles.gorewidow.ambient": "Gorewidow chitters",
     "subtitles.gorewidow.hurt": "Gorewidow hurts",
     "subtitles.gorewidow.death": "Gorewidow dies",
@@ -307,6 +314,12 @@ en = {
     "subtitles.gorewidow.web_strain": "Web strains",
 }
 ru = {
+    "key.gorewidow.slingshot": "Рогатка из паутины",
+    "key.gorewidow.vision": "Паучье зрение вкл/выкл",
+    "message.gorewidow.vision_on": "Паучье зрение: вкл",
+    "message.gorewidow.vision_off": "Паучье зрение: выкл",
+    "message.gorewidow.drinks_pack": "Тяжело ранена — выпила склянку крови из вашей сумки.",
+    "message.gorewidow.drinks_rider": "Тяжело ранена — пьёт ВАШУ кровь! Носите склянки крови.",
     "mood.gorewidow.stalking": "Крадётся",
     "mood.gorewidow.hiding": "Прячется",
     "mood.gorewidow.curious": "Любопытствует",
@@ -378,6 +391,7 @@ ru = {
     "item.gorewidow.blood_vial": "Склянка крови",
     "item.gorewidow.blood_vial.tooltip": "Предложите её Кровавой вдове, чтобы успокоить и приручить.",
     "item.gorewidow.gorewidow_harness": "Упряжь Кровавой вдовы",
+    "item.gorewidow.gorewidow_harness.tooltip": "Необязательна. Наездник получает на 35% меньше урона; +60 к грузоподъёмности.",
     "item.gorewidow.gorewidow_spawn_egg": "Яйцо призыва Кровавой вдовы",
     "itemGroup.gorewidow": "Кровавая вдова",
     "effect.gorewidow.webbed": "Опутан паутиной",
@@ -396,7 +410,7 @@ ru = {
     "message.gorewidow.command.follow": "Следовать",
     "message.gorewidow.command.stay": "Стоять",
     "message.gorewidow.command.wander": "Бродить",
-    "message.gorewidow.controls": "[%s] паутина  [%s] укус  [%s]/[%s] трос  [%s] прыжок / отпустить",
+    "message.gorewidow.controls": "[%s] паутина  [%s] укус  [%s]/[%s] трос  [%s] прыжок, держать: парашют  [%s] рогатка  [%s] зрение",
     "subtitles.gorewidow.ambient": "Кровавая вдова стрекочет",
     "subtitles.gorewidow.hurt": "Кровавая вдова ранена",
     "subtitles.gorewidow.death": "Кровавая вдова погибает",
@@ -453,8 +467,8 @@ write_json({
 
 write_json({
     "type": "neoforge:add_spawns",
-    "biomes": {"type": "neoforge:or", "values": ["#minecraft:is_jungle", "#minecraft:is_forest", "#minecraft:is_taiga", "minecraft:lush_caves"]},
-    "spawners": {"type": "gorewidow:gorewidow", "weight": 6, "minCount": 1, "maxCount": 1},
+    "biomes": ["minecraft:swamp", "minecraft:mangrove_swamp"],
+    "spawners": {"type": "gorewidow:gorewidow", "weight": 3, "minCount": 1, "maxCount": 1},
 }, G, "neoforge/biome_modifier/gorewidow_spawns.json")
 
 print("assets written")

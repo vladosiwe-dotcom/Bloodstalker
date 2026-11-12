@@ -17,7 +17,13 @@ public record MountActionPayload(Action action) implements CustomPacketPayload {
         RELEASE_WEB,
         /** Sprint key pressed / released while riding. */
         SPRINT_ON,
-        SPRINT_OFF
+        SPRINT_OFF,
+        /** Holding jump in the air: silk parachute. */
+        GLIDE_ON,
+        GLIDE_OFF,
+        /** Spider vision toggle (night vision + threat outlines). */
+        VISION_ON,
+        VISION_OFF
     }
 
     public static final Type<MountActionPayload> TYPE = new Type<>(Gorewidow.id("mount_action"));

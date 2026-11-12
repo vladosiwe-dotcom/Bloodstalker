@@ -24,6 +24,7 @@ neoForge {
         server {
             server()
             programArgument '--nogui'
+            systemProperty 'gorewidow.autostop', System.getProperty('gorewidow.autostop', 'false')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         // Development only: loads the "showcase" world, stages every Gorewidow state and saves screenshots.
@@ -32,7 +33,9 @@ neoForge {
             systemProperty 'gorewidow.showcase', 'true'
             systemProperty 'gorewidow.showcase.ui', System.getProperty('gorewidow.showcase.ui', 'false')
             systemProperty 'gorewidow.showcase.mind', System.getProperty('gorewidow.showcase.mind', 'false')
-            programArguments.addAll '--quickPlaySingleplayer', 'showcase', '--width', '1280', '--height', '720'
+            systemProperty 'gorewidow.showcase.lair', System.getProperty('gorewidow.showcase.lair', 'false')
+            systemProperty 'gorewidow.showcase.ride', System.getProperty('gorewidow.showcase.ride', 'false')
+            programArguments.addAll '--quickPlaySingleplayer', System.getProperty('gorewidow.showcase.world', 'showcase'), '--width', '1280', '--height', '720'
         }
         gameTestServer {
             type = 'gameTestServer'

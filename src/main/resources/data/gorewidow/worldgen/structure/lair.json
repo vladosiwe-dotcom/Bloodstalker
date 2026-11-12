@@ -1,0 +1,7 @@
+{
+  "type": "gorewidow:lair",
+  "biomes": "#minecraft:is_mountain",
+  "step": "underground_structures",
+  "spawn_overrides": {},
+  "terrain_adaptation": "none"
+}

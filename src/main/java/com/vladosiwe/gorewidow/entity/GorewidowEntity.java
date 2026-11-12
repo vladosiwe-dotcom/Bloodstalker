@@ -115,6 +115,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     static final EntityDataAccessor<Byte> DATA_AGGRESSION = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
     static final EntityDataAccessor<Byte> DATA_MOOD = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
     static final EntityDataAccessor<CompoundTag> DATA_TRUST = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    private static final EntityDataAccessor<Vector3f> DATA_SLING_A = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3f> DATA_SLING_B = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Integer> DATA_SLING_COUNT = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_GLIDING = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -149,6 +153,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final RawAnimation MOUNT = RawAnimation.begin().thenPlay("mount");
     private static final RawAnimation LAND = RawAnimation.begin().thenPlay("land");
     private static final RawAnimation LEAP = RawAnimation.begin().thenPlay("leap");
+    private static final RawAnimation DISMOUNT = RawAnimation.begin().thenPlay("dismount");
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -195,6 +200,28 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     final GorewidowCare care = new GorewidowCare(this);
     final GorewidowMind mind = new GorewidowMind(this);
     private int moodSetTick;
+
+    // ------------------------------------------------------------------ riding sequence and abilities
+    public static final int MOUNT_TICKS = 26;
+    public static final int DISMOUNT_TICKS = 12;
+    public static final float SLINGSHOT_STAMINA = 25.0F;
+    private int mountAnim;
+    private int dismountAnim;
+    private Vec3 mountFrom = Vec3.ZERO;
+    private Vec3 dismountAt = Vec3.ZERO;
+    private boolean usedAirJump;
+    private boolean riderGliding;
+    private int glideTicks;
+    private int riderDrainTimer;
+    private int slingCooldown;
+    private int clientSlingStart = -100;
+    private boolean riderVision = true;
+
+    // ------------------------------------------------------------------ lair
+    @Nullable
+    private BlockPos lairHome;
+    @Nullable
+    private BlockPos lairEntrance;
     boolean riderSprinting;
 
     public enum WebPurpose { ATTACK, TRAVERSE, PERCH, RIDER }
@@ -244,6 +271,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_AGGRESSION, (byte) AggressionMode.NEUTRAL.ordinal());
         builder.define(DATA_MOOD, (byte) GorewidowMind.Mood.STALKING.ordinal());
         builder.define(DATA_TRUST, new CompoundTag());
+        builder.define(DATA_SLING_A, new Vector3f());
+        builder.define(DATA_SLING_B, new Vector3f());
+        builder.define(DATA_SLING_COUNT, 0);
+        builder.define(DATA_GLIDING, false);
     }
 
     @Override
@@ -254,6 +285,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 this.surface = Direction.from3DDataValue(this.entityData.get(DATA_SURFACE));
             } else if (DATA_ROPE_LENGTH.equals(key) && !this.isControlledByLocalInstance()) {
                 this.ropeLength = this.entityData.get(DATA_ROPE_LENGTH);
+            } else if (DATA_SLING_COUNT.equals(key)) {
+                this.clientSlingStart = this.tickCount;
             } else if (DATA_TRUST.equals(key)) {
                 this.mind.load(this.entityData.get(DATA_TRUST));
             } else if (DATA_STATS.equals(key)) {
@@ -277,6 +310,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         tag.put("Inventory", this.inventory.createTag(this.registryAccess()));
         this.care.save(tag);
         tag.put("Trust", this.mind.save());
+        if (this.lairHome != null && this.lairEntrance != null) {
+            tag.putLong("LairHome", this.lairHome.asLong());
+            tag.putLong("LairEntrance", this.lairEntrance.asLong());
+        }
     }
 
     @Override
@@ -294,6 +331,10 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         }
         this.care.load(tag);
         this.mind.load(tag.getCompound("Trust"));
+        if (tag.contains("LairHome")) {
+            this.lairHome = BlockPos.of(tag.getLong("LairHome"));
+            this.lairEntrance = BlockPos.of(tag.getLong("LairEntrance"));
+        }
         this.syncTrust(this.mind.save());
         this.care.applyStats(false);
         this.setCommand(GorewidowCommand.byId(tag.getByte("Command")));
@@ -315,6 +356,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 return GorewidowEntity.this.getCommand() == GorewidowCommand.FOLLOW && super.canUse();
             }
         });
+        this.goalSelector.addGoal(6, new com.vladosiwe.gorewidow.entity.ai.GorewidowLairGoal(this));
         this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowBondGoal(this));
         this.goalSelector.addGoal(7, new com.vladosiwe.gorewidow.entity.ai.GorewidowOfferingGoal(this));
         this.goalSelector.addGoal(8, new com.vladosiwe.gorewidow.entity.ai.GorewidowCuriousGoal(this));
@@ -524,7 +566,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     }
 
     public float getMaxWeight() {
-        return (float) this.stats.value(GorewidowStats.Stat.WEIGHT);
+        return (float) this.stats.value(GorewidowStats.Stat.WEIGHT) + (this.hasHarness() ? 60.0F : 0.0F);
     }
 
     public boolean isEncumbered() {
@@ -564,6 +606,77 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     public boolean isRiderSprinting() {
         return this.riderSprinting;
+    }
+
+    // ---- lair
+    public void setLair(BlockPos home, BlockPos entrance) {
+        this.lairHome = home.immutable();
+        this.lairEntrance = entrance.immutable();
+    }
+
+    public boolean hasLair() {
+        return this.lairHome != null;
+    }
+
+    @Nullable
+    public BlockPos getLairHome() {
+        return this.lairHome;
+    }
+
+    @Nullable
+    public BlockPos getLairEntrance() {
+        return this.lairEntrance;
+    }
+
+    // ---- riding sequence
+    /** 0 at the start of the mount sequence, 1 once the rider is strapped in. */
+    public float getMountProgress(float partialTick) {
+        return Mth.clamp(1.0F - (this.mountAnim - partialTick) / MOUNT_TICKS, 0.0F, 1.0F);
+    }
+
+    public boolean isMounting() {
+        return this.mountAnim > 0;
+    }
+
+    public float getDismountProgress(float partialTick) {
+        return Mth.clamp(1.0F - (this.dismountAnim - partialTick) / DISMOUNT_TICKS, 0.0F, 1.0F);
+    }
+
+    public boolean isDismounting() {
+        return this.dismountAnim > 0;
+    }
+
+    public Vec3 getDismountPoint() {
+        return this.dismountAt;
+    }
+
+    public boolean isGliding() {
+        return this.entityData.get(DATA_GLIDING);
+    }
+
+    public void setRiderGliding(boolean gliding) {
+        this.riderGliding = gliding;
+        if (!this.level().isClientSide) {
+            this.entityData.set(DATA_GLIDING, gliding);
+        }
+    }
+
+    public boolean isRiderVision() {
+        return this.riderVision;
+    }
+
+    public void setRiderVision(boolean vision) {
+        this.riderVision = vision;
+    }
+
+    /** Ticks since the last slingshot launched (client side), for the snapping-strand effect. */
+    public int ticksSinceSlingshot() {
+        return this.tickCount - this.clientSlingStart;
+    }
+
+    public Vec3 getSlingAnchor(boolean first) {
+        Vector3f v = this.entityData.get(first ? DATA_SLING_A : DATA_SLING_B);
+        return new Vec3(v.x, v.y, v.z);
     }
 
     public GorewidowMind getMind() {
@@ -879,6 +992,19 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private void travelGround(Vec3 input) {
         Vec3 before = this.position();
         super.travel(input);
+        if (this.onGround()) {
+            this.usedAirJump = false;
+            this.glideTicks = 0;
+        } else if (this.riderGliding && this.getControllingPassenger() instanceof Player rider && this.getStamina() > 1.0F) {
+            // silk parachute: cap the fall and drift where the rider looks
+            Vec3 v = this.getDeltaMovement();
+            Vec3 look = rider.getLookAngle();
+            if (v.y < -0.11) {
+                this.setDeltaMovement(v.x * 0.96 + look.x * 0.025, -0.11, v.z * 0.96 + look.z * 0.025);
+            }
+            this.resetFallDistance();
+            this.glideTicks++;
+        }
         if (!this.horizontalCollision || this.isInWater() || this.isPassenger()) {
             this.stuckTicks = 0;
             return;
@@ -1083,6 +1209,16 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     @Override
     public void tick() {
         super.tick();
+        if (this.mountAnim > 0) {
+            this.mountAnim--;
+        }
+        if (this.dismountAnim > 0) {
+            this.dismountAnim--;
+        }
+        if (this.level().isClientSide && this.isGliding() && this.tickCount % 2 == 0) {
+            Vec3 sp = this.getSpinneretPos();
+            this.level().addParticle(ModParticles.WEB_FIBER.get(), sp.x, sp.y + 0.6, sp.z, 0, 0.05, 0);
+        }
         if (this.level().isClientSide) {
             this.clientSpeed = (float) this.position().distanceTo(new Vec3(this.xo, this.yo, this.zo));
             if (!this.isControlledByLocalInstance()) {
@@ -1104,6 +1240,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.care.serverTick();
         this.mind.serverTick();
         this.tickMoodBaseline();
+        this.tickRiderPassives();
+        this.tickLairSchedule();
 
         WebMode mode = this.getWebMode();
         if (mode != WebMode.NONE && this.isDeadOrDying()) {
@@ -1140,6 +1278,129 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
         this.tickDrain();
         this.tickLanding();
+    }
+
+    /** Things the mount does for (and to) its rider, ARK style. */
+    private void tickRiderPassives() {
+        if (this.mountAnim > 0) {
+            this.getNavigation().stop();
+            this.setDeltaMovement(this.getDeltaMovement().multiply(0, 1, 0));
+        }
+        if (this.slingCooldown > 0) {
+            this.slingCooldown--;
+        }
+        if (!(this.getFirstPassenger() instanceof Player rider)) {
+            this.riderDrainTimer = 0;
+            return;
+        }
+        if (this.riderGliding && !this.onGround()) {
+            this.care.useStamina(Math.min(this.getStamina(), 0.25F));
+            this.resetFallDistance();
+        }
+        // spider vision: the rider sees in the dark (threat outlines are drawn client-side)
+        if (this.riderVision && this.tickCount % 80 == 0) {
+            rider.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 300, 0, true, false, false));
+        } else if (!this.riderVision && rider.hasEffect(MobEffects.NIGHT_VISION) && rider.getEffect(MobEffects.NIGHT_VISION).isAmbient()) {
+            rider.removeEffect(MobEffects.NIGHT_VISION);
+        }
+        // badly hurt, it feeds: on a blood vial from the rider's pack, or on the rider
+        if (this.getHealth() < this.getMaxHealth() * 0.4F && ++this.riderDrainTimer >= 60) {
+            this.riderDrainTimer = 0;
+            int slot = GorewidowCare.findVial(rider.getInventory());
+            if (slot >= 0) {
+                if (!rider.getAbilities().instabuild) {
+                    rider.getInventory().getItem(slot).shrink(1);
+                    if (!rider.getInventory().add(new ItemStack(Items.GLASS_BOTTLE))) {
+                        rider.drop(new ItemStack(Items.GLASS_BOTTLE), false);
+                    }
+                }
+                this.heal(14.0F);
+                rider.displayClientMessage(Component.translatable("message.gorewidow.drinks_pack"), true);
+            } else {
+                rider.hurt(ModDamageTypes.bloodDrain(this), 2.5F);
+                this.heal(5.0F);
+                rider.displayClientMessage(Component.translatable("message.gorewidow.drinks_rider"), true);
+            }
+            this.playSound(ModSounds.DRAIN.get(), 0.8F, 1.2F);
+            this.level().broadcastEntityEvent(this, (byte) 61);
+        }
+    }
+
+    /** A lair-born Gorewidow sleeps in its den by day and roams far at night. */
+    private void tickLairSchedule() {
+        if (this.lairHome == null || this.isTame() || this.tickCount % 20 != 0) {
+            return;
+        }
+        boolean night = this.level().isNight();
+        this.restrictTo(this.lairHome, night ? 80 : 8);
+    }
+
+    // ---- slingshot
+    /** Two silk lines fired in a V ahead; returns {anchorA, anchorB, launchVelocity} or null if either misses. */
+    @Nullable
+    public Vec3[] computeSlingshot(Vec3 lookDir) {
+        Vec3 c = this.getBodyCenter();
+        Vec3 flat = new Vec3(lookDir.x, 0, lookDir.z);
+        if (flat.lengthSqr() < 1.0E-4) {
+            return null;
+        }
+        flat = flat.normalize();
+        Vec3 left = new Vec3(flat.z, 0, -flat.x);
+        Vec3 up = new Vec3(0, 1, 0);
+        Vec3[] anchors = new Vec3[2];
+        for (int i = 0; i < 2; i++) {
+            Vec3 dir = flat.add(left.scale(i == 0 ? 0.45 : -0.45)).add(up.scale(0.3 + Math.max(0, lookDir.y))).normalize();
+            HitResult hit = this.level().clip(new ClipContext(c, c.add(dir.scale(26)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+            if (hit.getType() != HitResult.Type.BLOCK || hit.getLocation().distanceTo(c) < 3.0) {
+                return null;
+            }
+            anchors[i] = hit.getLocation();
+        }
+        Vec3 mid = anchors[0].add(anchors[1]).scale(0.5);
+        Vec3 toward = mid.subtract(c);
+        double dist = toward.length();
+        Vec3 launch = toward.normalize().scale(Math.min(2.4, 1.1 + dist * 0.06)).add(0, 0.25, 0);
+        return new Vec3[]{anchors[0], anchors[1], launch};
+    }
+
+    /** Controlling side: fires the slingshot and applies the launch. Returns the anchors to report, or null. */
+    @Nullable
+    public Vec3[] launchSlingshot(Vec3 lookDir) {
+        if (this.slingCooldown > 0 || this.getStamina() < SLINGSHOT_STAMINA || this.isEncumbered() || this.mountAnim > 0) {
+            return null;
+        }
+        Vec3[] result = this.computeSlingshot(lookDir);
+        if (result == null) {
+            return null;
+        }
+        if (this.getWebMode() != WebMode.NONE && !this.level().isClientSide) {
+            this.releaseWeb(false);
+        }
+        if (this.surface != Direction.DOWN) {
+            this.setSurface(Direction.DOWN);
+        }
+        this.setDeltaMovement(result[2]);
+        this.hasImpulse = true;
+        this.usedAirJump = false;
+        this.slingCooldown = 30;
+        this.resetFallDistance();
+        return result;
+    }
+
+    /** Server: records a slingshot (for every client's strand effect) and charges stamina. */
+    public boolean acceptSlingshot(Vec3 a, Vec3 b) {
+        Vec3 c = this.getBodyCenter();
+        if (a.distanceTo(c) > 30 || b.distanceTo(c) > 30 || !this.care.useStamina(SLINGSHOT_STAMINA)) {
+            return false;
+        }
+        this.entityData.set(DATA_SLING_A, new Vector3f((float) a.x, (float) a.y, (float) a.z));
+        this.entityData.set(DATA_SLING_B, new Vector3f((float) b.x, (float) b.y, (float) b.z));
+        this.entityData.set(DATA_SLING_COUNT, this.entityData.get(DATA_SLING_COUNT) + 1);
+        this.triggerAnim("action", "web_shoot");
+        this.playSound(ModSounds.WEB_SHOOT.get(), 1.0F, 0.8F);
+        this.playSound(ModSounds.LEAP.get(), 1.0F, 1.1F);
+        this.resetFallDistance();
+        return true;
     }
 
     private void tickLanding() {
@@ -1552,8 +1813,28 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     }
 
     @Override
+    public void handleEntityEvent(byte id) {
+        if (id == 61 && this.getFirstPassenger() instanceof LivingEntity rider) {
+            Vec3 mouth = this.getMouthPos();
+            for (int i = 0; i < 14; i++) {
+                Vec3 src = rider.position().add((this.random.nextDouble() - 0.5) * 0.6, this.random.nextDouble() * 0.6, (this.random.nextDouble() - 0.5) * 0.6);
+                Vec3 vel = mouth.subtract(src).scale(1.0 / 10.0);
+                this.level().addParticle(ModParticles.BLOOD_STREAM.get(), src.x, src.y, src.z, vel.x, vel.y, vel.z);
+            }
+            return;
+        }
+        super.handleEntityEvent(id);
+    }
+
+    @Override
     public boolean onClimbable() {
         return false;
+    }
+
+    /** Spreads its weight over long legs and skates over water like a pond spider. */
+    @Override
+    public boolean canStandOnFluid(net.minecraft.world.level.material.FluidState fluid) {
+        return fluid.is(net.minecraft.tags.FluidTags.WATER) && !this.isDeadOrDying();
     }
 
     @Override
@@ -1631,10 +1912,6 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (!this.isTame() || !this.isOwnedBy(player)) {
             return false;
         }
-        if (!this.hasHarness()) {
-            player.displayClientMessage(Component.translatable("message.gorewidow.needs_harness"), true);
-            return false;
-        }
         if (this.isVehicle()) {
             return false;
         }
@@ -1702,7 +1979,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     @Nullable
     @Override
     public LivingEntity getControllingPassenger() {
-        if (this.isTame() && this.hasHarness() && this.getFirstPassenger() instanceof Player player && this.isOwnedBy(player)) {
+        if (this.isTame() && this.mountAnim <= 0 && this.getFirstPassenger() instanceof Player player && this.isOwnedBy(player)) {
             return player;
         }
         return null;
@@ -1724,7 +2001,17 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             return;
         }
         Vec3 eye = this.getRiderEyePos();
-        move.accept(passenger, eye.x, eye.y - passenger.getEyeHeight(), eye.z);
+        double eyeHeight = passenger.getEyeHeight();
+        if (this.mountAnim > 0) {
+            // being hauled in on silk: from where the rider stood, swung in under the belly
+            float t = this.getMountProgress(0.0F);
+            float e = t * t * (3 - 2 * t);
+            Vec3 start = this.mountFrom.add(0, eyeHeight, 0);
+            Vec3 lifted = start.lerp(eye, e).add(0, Math.sin(Math.PI * e) * 0.5, 0);
+            move.accept(passenger, lifted.x, lifted.y - eyeHeight, lifted.z);
+            return;
+        }
+        move.accept(passenger, eye.x, eye.y - eyeHeight, eye.z);
     }
 
     /** Where the rider's eyes sit: under the thorax, between belly and surface. */
@@ -1777,6 +2064,17 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             Vec3 flat = new Vec3(look.x, 0, look.z);
             flat = flat.lengthSqr() > 1.0E-4 ? flat.normalize() : Vec3.ZERO;
             this.setDeltaMovement(flat.scale(0.45 + 0.85 * power).add(0, 0.5 + 0.45 * power, 0));
+        } else if (!this.usedAirJump && this.glideTicks < 8) {
+            // second jump in mid-air
+            this.usedAirJump = true;
+            Vec3 flat = new Vec3(look.x, 0, look.z);
+            flat = flat.lengthSqr() > 1.0E-4 ? flat.normalize() : Vec3.ZERO;
+            Vec3 v = this.getDeltaMovement();
+            this.setDeltaMovement(v.x * 0.5 + flat.x * (0.35 + 0.4 * power), 0.45 + 0.35 * power, v.z * 0.5 + flat.z * (0.35 + 0.4 * power));
+            for (int i = 0; i < 8; i++) {
+                this.level().addParticle(ModParticles.WEB_FIBER.get(), this.getX(), this.getY() + 0.5, this.getZ(),
+                        (this.random.nextDouble() - 0.5) * 0.2, -0.05, (this.random.nextDouble() - 0.5) * 0.2);
+            }
         } else {
             return;
         }
@@ -1805,9 +2103,6 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     public void onPlayerJump(int power) {
-        if (!this.hasHarness()) {
-            return;
-        }
         if (this.getStamina() < 8.0F || this.isEncumbered()) {
             return;
         }
@@ -1816,7 +2111,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     public boolean canJump() {
-        return this.hasHarness() && !this.isDeadOrDying() && !this.isEncumbered();
+        return !this.isDeadOrDying() && !this.isEncumbered() && this.mountAnim <= 0;
     }
 
     @Override
@@ -1842,6 +2137,40 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.getNavigation().stop();
             this.setTarget(null);
             this.setPerched(false);
+            this.mountAnim = MOUNT_TICKS;
+            this.dismountAnim = 0;
+            this.mountFrom = passenger.position();
+            this.usedAirJump = false;
+            if (!this.level().isClientSide) {
+                this.triggerAnim("action", "mount");
+                this.playSound(ModSounds.WEB_SHOOT.get(), 0.7F, 1.4F);
+            }
+        }
+    }
+
+    @Override
+    protected void removePassenger(Entity passenger) {
+        super.removePassenger(passenger);
+        if (passenger instanceof Player player) {
+            this.mountAnim = 0;
+            this.dismountAnim = DISMOUNT_TICKS;
+            this.dismountAt = passenger.position().add(0, passenger.getBbHeight() * 0.5, 0);
+            this.riderGliding = false;
+            this.riderSprinting = false;
+            if (!this.level().isClientSide) {
+                this.entityData.set(DATA_GLIDING, false);
+                this.triggerAnim("action", "dismount");
+                this.playSound(ModSounds.WEB_RETRACT.get(), 0.8F, 1.2F);
+                if (player.hasEffect(MobEffects.NIGHT_VISION) && player.getEffect(MobEffects.NIGHT_VISION).isAmbient()) {
+                    player.removeEffect(MobEffects.NIGHT_VISION);
+                }
+            } else {
+                for (int i = 0; i < 12; i++) {
+                    this.level().addParticle(ModParticles.WEB_FIBER.get(), this.dismountAt.x + (this.random.nextDouble() - 0.5),
+                            this.dismountAt.y + (this.random.nextDouble() - 0.5), this.dismountAt.z + (this.random.nextDouble() - 0.5),
+                            0, 0.02, 0);
+                }
+            }
         }
     }
 
@@ -1905,7 +2234,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 .triggerableAnim("tame", TAME)
                 .triggerableAnim("mount", MOUNT)
                 .triggerableAnim("land", LAND)
-                .triggerableAnim("leap", LEAP));
+                .triggerableAnim("leap", LEAP)
+                .triggerableAnim("dismount", DISMOUNT));
     }
 
     private PlayState movementState(AnimationState<GorewidowEntity> state) {

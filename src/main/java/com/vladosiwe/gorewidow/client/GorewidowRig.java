@@ -349,7 +349,8 @@ public final class GorewidowRig {
         float spreadTarget = (roped && mode == WebMode.SWING) || airborne ? 1.0F : 0.0F;
         float raiseTarget = !dead && (mode == WebMode.TETHER || "screech".equals(action) || "web_shoot".equals(action)) ? 1.0F
                 : "bite".equals(action) ? 0.75F : 0.0F;
-        float gripTarget = !dead && widow.isDraining() ? 1.0F : 0.0F;
+        float gripTarget = !dead && (widow.isDraining() || widow.getTameFeeder() != null
+                || (widow.isMounting() && widow.getMountProgress(partial) < 0.85F)) ? 1.0F : 0.0F;
         this.ikWeight += (this.ikTarget - this.ikWeight) * blend;
         this.curl += (curlTarget - this.curl) * blend * 0.7F;
         this.spread += (spreadTarget - this.spread) * blend;

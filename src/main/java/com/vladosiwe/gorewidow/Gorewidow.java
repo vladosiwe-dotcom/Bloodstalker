@@ -30,12 +30,15 @@ public final class Gorewidow {
         ModParticles.PARTICLES.register(modBus);
         ModEffects.EFFECTS.register(modBus);
         com.vladosiwe.gorewidow.registry.ModMenus.MENUS.register(modBus);
+        com.vladosiwe.gorewidow.worldgen.ModStructures.TYPES.register(modBus);
+        com.vladosiwe.gorewidow.worldgen.ModStructures.PIECES.register(modBus);
 
         modBus.addListener(Gorewidow::onAttributes);
         modBus.addListener(Gorewidow::onSpawnPlacements);
         modBus.addListener(ModNetwork::register);
         NeoForge.EVENT_BUS.addListener(Gorewidow::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(Gorewidow::onLivingDeath);
+        com.vladosiwe.gorewidow.dev.DevServerHooks.register();
     }
 
     /** Kills made by a tamed Gorewidow, or by its rider, feed it experience. */
@@ -75,9 +78,13 @@ public final class Gorewidow {
 
     /** A rider strapped under the belly is shielded from suffocation and fall damage of its mount's acrobatics. */
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
-        if (event.getEntity().getVehicle() instanceof GorewidowEntity
-                && (event.getSource().is(DamageTypes.IN_WALL) || event.getSource().is(DamageTypes.FALL))) {
-            event.setCanceled(true);
+        if (event.getEntity().getVehicle() instanceof GorewidowEntity mount) {
+            if (event.getSource().is(DamageTypes.IN_WALL) || event.getSource().is(DamageTypes.FALL)) {
+                event.setCanceled(true);
+            } else if (mount.hasHarness() && event.getSource().getEntity() != mount) {
+                // a harness straps the rider in tight against the belly plates
+                event.setAmount(event.getAmount() * 0.65F);
+            }
         }
     }
 }

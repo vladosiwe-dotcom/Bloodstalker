@@ -11,8 +11,8 @@ The creature, its model, textures, animations and sounds are all original.
 
 ## In the wild
 
-Gorewidows spawn rarely in jungles, forests, taigas and lush caves, at night or under thick
-canopy. They hunt the way spiders do:
+Gorewidows live in mountain lairs and, more rarely, in swamps (see below). They hunt the way
+spiders do:
 
 - **Ambush.** It webs its way up to a branch or cave ceiling, goes still, sometimes drops down on a
   thread and dangles there, waiting for prey to pass below.
@@ -25,6 +25,12 @@ canopy. They hunt the way spiders do:
 - **Blood drain.** It latches onto webbed or weakened prey, drinks from it and heals itself.
 
 ## Mind: trust and mood
+
+Where they live: Gorewidows make their **lairs in the mountains** (`/locate structure gorewidow:lair`).
+A lair is a webbed crack in a steep slope; inside, a tunnel winds down into a deep chamber full of
+bones, silk cocoons and a barrel of loot, and its Gorewidow sleeps there by day. **At night it climbs
+out to hunt** across the slopes and returns at dawn. A few also roam swamps (ARK's bog), hanging in
+the trees.
 
 Every Gorewidow keeps a **trust** score for each player, from -100 to 100, and a **mood**. Both
 are shown on the info panel.
@@ -72,7 +78,7 @@ vials still needed and the bonus levels you would get.
 
 | Action | How |
 |---|---|
-| Ride | Use with an empty hand (needs a harness) |
+| Ride | Use with an empty hand (no saddle needed) |
 | **Option wheel** | Sneak + use: Ride, Inventory, Follow / Stay / Wander, Aggressive / Neutral / Passive, Pet, Take harness (number keys work too) |
 | Inventory and stats | From the wheel or the screen's buttons: harness slot, 15 cargo slots, name, level, XP and every stat with a **+** button for unspent points |
 | Feed / heal | Use a Blood Vial or raw meat on it. When hungry it also eats from its own cargo |
@@ -90,6 +96,34 @@ vials still needed and the bonus levels you would get.
   barely move, cannot leap and cannot swing.
 - **Attitude.** Aggressive hunts nearby monsters and untamed animals (never players or your
   pets). Neutral defends itself and you. Passive never fights.
+
+## Riding (ARK-style)
+
+No saddle is needed. Use your tamed Gorewidow with an empty hand: it crouches, reaches out with its
+front legs and **hauls you in on silk threads**, swinging you from upright into a harness hold
+face-down under its belly. You stay there on floors, walls, ceilings and in swings. When you
+dismount it lowers itself and the threads snap away. A **Gorewidow Harness** is optional: the rider
+takes 35% less damage and the mount carries 60 more weight.
+
+| Key (rebindable) | Action |
+|---|---|
+| W/A/S/D | Move relative to where you look, on any surface. Walk into a wall to climb it |
+| Space | Leap. In the air, tap it again for a **double jump**; **hold** it while falling for a silk **parachute**. On a wall or ceiling, jump off it. On a web line, let go and keep the momentum |
+| R | Shoot a web line at the crosshair: a block becomes a swing anchor, a creature gets pulled in. Press again to release |
+| C | **Slingshot**: fire two lines in a V ahead and launch yourself between them (25 stamina) |
+| Z / X | Reel the line in / pay it out |
+| G | Bite what you look at. Biting a webbed or wounded target starts a blood drain that heals the mount |
+| V | Toggle **spider vision** |
+| Sprint key | Sprint (costs stamina) |
+| Shift | Dismount |
+
+Passives while riding, after ARK's Bloodstalker:
+- **Spider vision.** The rider gets night vision, and hostile creatures nearby (monsters, wild
+  Gorewidows, anything targeting you) glow through walls.
+- **Feeds when wounded.** Below 40% health it drinks from the rider: a blood vial from the pack if
+  you carry one, otherwise your own blood.
+- **Skates on water.** Its long legs keep it standing on the surface.
+- **Climbs anything**, wrapping around edges and onto ceilings.
 
 ## How it is built
 
@@ -114,12 +148,12 @@ vials still needed and the bonus levels you would get.
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 12 game tests: clinging, climbing, swing physics, tethering,
-                              # trust from offerings / hits, feeding-tame with effectiveness,
-                              # level-ups, cargo weight and eating, riding underneath, draining
+./gradlew runGameTestServer   # 15 game tests: clinging, climbing, swing physics, tethering,
+                              # slingshot, water walking, trust from offerings / hits, feeding-tame,
+                              # level-ups, cargo, mount sequence, riding underneath, rider drain
 ./gradlew runShowcase         # dev only: needs a world in run/saves/showcase; stages every
                               # state and saves screenshots to run/screenshots
-                              # (-Dgorewidow.showcase.ui=true interface, .mind=true behaviour)
+                              # (-Dgorewidow.showcase.ui / .mind / .ride / .lair = true)
 ```
 
 Screenshots from the real game are in `docs/screenshots/`.

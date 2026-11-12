@@ -28,6 +28,7 @@ public final class ModNetwork {
         registrar.playToServer(CreatureActionPayload.TYPE, CreatureActionPayload.STREAM_CODEC, ModNetwork::handleCreatureAction);
         registrar.playToServer(RenamePayload.TYPE, RenamePayload.STREAM_CODEC, ModNetwork::handleRename);
         registrar.playToServer(WhistlePayload.TYPE, WhistlePayload.STREAM_CODEC, ModNetwork::handleWhistle);
+        registrar.playToServer(SlingshotPayload.TYPE, SlingshotPayload.STREAM_CODEC, ModNetwork::handleSlingshot);
     }
 
     private static void handleMountAction(MountActionPayload payload, IPayloadContext context) {
@@ -41,6 +42,17 @@ public final class ModNetwork {
             case RELEASE_WEB -> mount.releaseWeb(true);
             case SPRINT_ON -> mount.setRiderSprinting(true);
             case SPRINT_OFF -> mount.setRiderSprinting(false);
+            case GLIDE_ON -> mount.setRiderGliding(true);
+            case GLIDE_OFF -> mount.setRiderGliding(false);
+            case VISION_ON -> mount.setRiderVision(true);
+            case VISION_OFF -> mount.setRiderVision(false);
+        }
+    }
+
+    private static void handleSlingshot(SlingshotPayload payload, IPayloadContext context) {
+        Player player = context.player();
+        if (player.getVehicle() instanceof GorewidowEntity mount && mount.getControllingPassenger() == player) {
+            mount.acceptSlingshot(new net.minecraft.world.phys.Vec3(payload.a()), new net.minecraft.world.phys.Vec3(payload.b()));
         }
     }
 

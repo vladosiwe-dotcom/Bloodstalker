@@ -74,6 +74,40 @@ public class GorewidowRenderer extends GeoEntityRenderer<GorewidowEntity> {
             }
             this.strand(poseStack, buffers, widow, base, from, to, sag, twang, time, 1.0F);
         }
+        // silk that hauls the rider in under the belly, and snaps when they let go
+        if (widow.isMounting() && widow.getFirstPassenger() instanceof net.minecraft.world.entity.player.Player rider) {
+            float p = widow.getMountProgress(partialTick);
+            this.bellyStrands(poseStack, buffers, widow, rig, base, rider.getPosition(partialTick).add(0, 0.9, 0), time, 1.0F - p * 0.6F, 0.12F * (1 - p));
+        } else if (widow.isDismounting()) {
+            float p = widow.getDismountProgress(partialTick);
+            Vec3 snapped = widow.getDismountPoint().lerp(rig.modelToWorld(0, 12, 0), p);
+            this.bellyStrands(poseStack, buffers, widow, rig, base, snapped, time, 1.0F - p, 0.2F * (1 - p));
+        }
+        // the taming feed: threads latched onto the crouching player
+        net.minecraft.world.entity.player.Player feeder = widow.getTameFeeder();
+        if (feeder != null) {
+            this.bellyStrands(poseStack, buffers, widow, rig, base, feeder.getPosition(partialTick).add(0, 1.0, 0), time, 0.8F, 0.06F);
+        }
+        // slingshot: two lines that fire, pull and snap back
+        int sling = widow.ticksSinceSlingshot();
+        if (sling >= 0 && sling < 10) {
+            float p = (sling + partialTick) / 10.0F;
+            for (int i = 0; i < 2; i++) {
+                Vec3 anchor = widow.getSlingAnchor(i == 0).subtract(base);
+                Vec3 tip = p < 0.3F ? anchor : anchor.lerp(from, (p - 0.3F) / 0.7F);
+                this.strand(poseStack, buffers, widow, base, from, tip, 0.05F, 0.15F * (1 - p), time, 1.0F - p * 0.5F);
+            }
+        }
+        // parachute: a fan of silk billowing up from the spinneret
+        if (widow.isGliding()) {
+            Vec3 upv = rig.up();
+            for (int i = 0; i < 6; i++) {
+                double a = i * Math.PI / 3 + time * 0.05;
+                Vec3 spread = new Vec3(Math.cos(a), 0, Math.sin(a)).scale(1.4);
+                Vec3 tip = from.add(upv.scale(2.4)).add(spread).add(0, Math.sin(time * 0.3 + i) * 0.15, 0);
+                this.strand(poseStack, buffers, widow, base, from, tip, 0.25F, 0.05F, time + i * 7, 0.6F);
+            }
+        }
         Vec3 retract = rig.retractFrom();
         if (retract != null) {
             float p = rig.retractProgress(partialTick);
@@ -81,6 +115,20 @@ public class GorewidowRenderer extends GeoEntityRenderer<GorewidowEntity> {
             Vec3 tip = start.lerp(from, p);
             float sag = (float) tip.distanceTo(from) * 0.12F * (1 - p);
             this.strand(poseStack, buffers, widow, base, from, tip, sag, 0.12F * (1 - p), time, 1.0F - p * 0.5F);
+        }
+    }
+
+    /** A spread of threads from points under the belly to a target point. */
+    private void bellyStrands(PoseStack poseStack, MultiBufferSource buffers, GorewidowEntity widow, GorewidowRig rig, Vec3 base,
+                              Vec3 targetWorld, float time, float alpha, float twang) {
+        float[][] anchors = {{-5, 12, -6}, {5, 12, -6}, {-5, 12, 6}, {5, 12, 6}, {0, 11, 0}};
+        Vec3 to = targetWorld.subtract(base);
+        for (int i = 0; i < anchors.length; i++) {
+            Vec3 a = rig.modelToWorld(anchors[i][0], anchors[i][1], anchors[i][2]).subtract(base);
+            Vec3 end = to.add((i % 2 == 0 ? -0.15 : 0.15), (i - 2) * 0.12, 0);
+            Vec3 mid = base.add(a.lerp(end, 0.5));
+            int light = LevelRenderer.getLightColor(widow.level(), BlockPos.containing(mid));
+            WebStrandRenderer.render(poseStack, buffers, a, end, 0.02F, twang, time + i * 5, light, alpha, 1.8F);
         }
     }
 

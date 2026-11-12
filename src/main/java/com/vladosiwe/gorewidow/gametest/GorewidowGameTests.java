@@ -237,6 +237,62 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 100)
+    public static void slingshotLaunchesBetweenTwoAnchors(GameTestHelper helper) {
+        for (int x = 1; x <= 15; x++) {
+            for (int y = FLOOR; y <= FLOOR + 10; y++) {
+                helper.setBlock(new BlockPos(x, y, 15), Blocks.STONE);
+            }
+        }
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 3));
+        Vec3 start = widow.position();
+        Vec3[] shot = widow.launchSlingshot(new Vec3(0, 0.2, 1));
+        helper.assertTrue(shot != null, "no anchors found for the slingshot");
+        helper.assertTrue(widow.acceptSlingshot(shot[0], shot[1]), "server refused the slingshot");
+        helper.assertTrue(widow.getStamina() < widow.getMaxStamina(), "no stamina spent");
+        helper.runAfterDelay(6, () -> {
+            helper.assertTrue(widow.position().z - start.z > 3.0, "not launched forward: moved " + (widow.position().z - start.z));
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 80)
+    public static void walksOnWater(GameTestHelper helper) {
+        for (int x = 2; x <= 14; x++) {
+            for (int z = 2; z <= 14; z++) {
+                helper.setBlock(new BlockPos(x, FLOOR - 1, z), Blocks.WATER);
+            }
+        }
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 1, 8));
+        helper.runAfterDelay(40, () -> {
+            // like a strider on lava, it stands on the fluid's half-block surface instead of sinking
+            helper.assertTrue(widow.onGround() && widow.getY() >= helper.absoluteVec(new Vec3(0, FLOOR - 0.55, 0)).y,
+                    "sank into the water, y=" + (widow.getY() - helper.absoluteVec(Vec3.ZERO).y));
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 120)
+    public static void badlyHurtMountDrinksFromTheRidersPack(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.moveTo(widow.getX() + 2, widow.getY(), widow.getZ());
+        player.getInventory().add(new ItemStack(ModItems.BLOOD_VIAL.get(), 3));
+        widow.tame(player);
+        widow.tryMount(player);
+        widow.setHealth(widow.getMaxHealth() * 0.2F);
+        float hurt = widow.getHealth();
+        helper.runAfterDelay(GorewidowEntity.MOUNT_TICKS + 70, () -> {
+            helper.assertTrue(player.getInventory().countItem(ModItems.BLOOD_VIAL.get()) < 3, "no vial taken from the rider");
+            helper.assertTrue(widow.getHealth() > hurt, "it did not heal");
+            player.stopRiding();
+            player.discard();
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 60)
     public static void levelsUpAndSpendsStatPoints(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
@@ -276,16 +332,19 @@ public final class GorewidowGameTests {
         });
     }
 
-    @GameTest(template = "arena", timeoutTicks = 100)
+    @GameTest(template = "arena", timeoutTicks = 120)
     public static void riderHangsUnderTheBelly(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
         @SuppressWarnings("removal")
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         player.moveTo(widow.getX() + 2, widow.getY(), widow.getZ());
         widow.tame(player);
-        widow.setHarness(true);
         widow.mobInteract(player, InteractionHand.MAIN_HAND);
         helper.runAfterDelay(3, () -> {
+            helper.assertTrue(widow.isMounting(), "no mount sequence");
+            helper.assertTrue(widow.getControllingPassenger() == null, "rider steers while still being hauled in");
+        });
+        helper.runAfterDelay(GorewidowEntity.MOUNT_TICKS + 4, () -> {
             helper.assertTrue(player.getVehicle() == widow, "player did not mount");
             helper.assertTrue(widow.getControllingPassenger() == player, "player does not control the mount");
             double eye = player.getEyeY();

@@ -27,6 +27,11 @@ public final class WebStrandRenderer {
      */
     public static void render(PoseStack poseStack, MultiBufferSource buffers, Vec3 from, Vec3 to, float sag, float twang,
                               float time, int light, float alpha) {
+        render(poseStack, buffers, from, to, sag, twang, time, light, alpha, 1.0F);
+    }
+
+    public static void render(PoseStack poseStack, MultiBufferSource buffers, Vec3 from, Vec3 to, float sag, float twang,
+                              float time, int light, float alpha, float thickness) {
         Vec3 dir = to.subtract(from);
         double length = dir.length();
         if (length < 0.05) {
@@ -54,9 +59,9 @@ public final class WebStrandRenderer {
 
         VertexConsumer vc = buffers.getBuffer(RenderType.entityTranslucent(STRAND));
         PoseStack.Pose pose = poseStack.last();
-        ribbon(vc, pose, pts, side, 0.035F, 0.0F, 0.5F, light, alpha, length);
-        ribbon(vc, pose, pts, side2, 0.035F, 0.0F, 0.5F, light, alpha, length);
-        ribbon(vc, pose, pts, side, 0.11F, 0.5F, 1.0F, light, alpha * 0.35F, length);
+        ribbon(vc, pose, pts, side, 0.035F * thickness, 0.0F, 0.5F, light, alpha, length);
+        ribbon(vc, pose, pts, side2, 0.035F * thickness, 0.0F, 0.5F, light, alpha, length);
+        ribbon(vc, pose, pts, side, 0.11F * thickness, 0.5F, 1.0F, light, alpha * 0.35F, length);
     }
 
     private static void ribbon(VertexConsumer vc, PoseStack.Pose pose, Vec3[] pts, Vec3 side, float halfWidth,

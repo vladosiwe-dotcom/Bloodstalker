@@ -98,6 +98,10 @@ public final class DevShowcase {
             SCENES.clear();
             defineUiScenes();
         }
+        if (Boolean.getBoolean("gorewidow.showcase.ride")) {
+            SCENES.clear();
+            defineRideScenes();
+        }
         if (Boolean.getBoolean("gorewidow.showcase.mind")) {
             SCENES.clear();
             defineMindScenes();
@@ -174,6 +178,73 @@ public final class DevShowcase {
             c.player.moveTo(w.getX() + 1.5, w.getY(), w.getZ(), 0, 0);
             c.player.startRiding(w, true);
         }, c -> {}, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
+    }
+
+    private static ServerPlayer rider;
+    private static volatile boolean slingFired;
+
+    /** A second, server-side player to show the rider from the outside (same trick the game tests use). */
+    private static ServerPlayer makeRider(ServerLevel level) {
+        if (rider != null && !rider.isRemoved()) {
+            return rider;
+        }
+        net.minecraft.server.network.CommonListenerCookie cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(
+                new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "Rider"), false);
+        rider = new ServerPlayer(level.getServer(), level, cookie.gameProfile(), cookie.clientInformation());
+        net.minecraft.network.Connection connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection);
+        level.getServer().getPlayerList().placeNewPlayer(connection, rider, cookie);
+        rider.setGameMode(GameType.SURVIVAL);
+        return rider;
+    }
+
+    private static void mountScene(String name, int settle) {
+        SCENES.add(new Scene(name, settle, c -> {
+            GorewidowEntity w = c.widow(0, 0, 0, 90);
+            ServerPlayer r = makeRider(c.level);
+            r.stopRiding();
+            Vec3 p = c.at(-2.2, 0, 0.3);
+            r.teleportTo(c.level, p.x, p.y, p.z, 90, 0);
+            w.tame(r);
+            w.setHarness(true);
+        }, c -> {
+            if (ticks == 4) {
+                c.first().tryMount(rider);
+            }
+        }, new Vec3(-4.5, 1.6, -3.6), new Vec3(-1.0, 0.9, 0.2), false));
+    }
+
+    private static void defineRideScenes() {
+        mountScene("ride_mount_a", 4 + 9);
+        mountScene("ride_mount_b", 4 + 17);
+        mountScene("ride_mount_c", 4 + 40);
+        SCENES.add(new Scene("ride_slingshot", 15, c -> {
+            c.fill(-8, 0, 8, 8, 12, 8, Blocks.DEEPSLATE_BRICKS.defaultBlockState());
+            c.widow(0, 0, -4, 0);
+            slingFired = false;
+        }, c -> {
+            if (ticks >= 10 && !slingFired) {
+                slingFired = true;
+                Vec3[] shot = c.first().launchSlingshot(new Vec3(0, 0.3, 1));
+                LOGGER.info("showcase slingshot: {}", shot == null ? "no anchors" : shot[2]);
+                if (shot != null) {
+                    c.first().acceptSlingshot(shot[0], shot[1]);
+                }
+            }
+        }, new Vec3(-12, 4, 1), new Vec3(0, 4, 2), false));
+        SCENES.add(new Scene("ride_glide", 40, c -> {
+            GorewidowEntity w = c.widow(0, 9, 0, 30);
+            ServerPlayer r = makeRider(c.level);
+            r.stopRiding();
+            Vec3 rp = c.at(0, 9, 0);
+            r.teleportTo(c.level, rp.x, rp.y, rp.z, 0, 0);
+            w.tame(r);
+            w.tryMount(r);
+            w.setRiderGliding(true);
+        }, c -> {
+            c.first().setRiderGliding(true);
+            c.first().setDeltaMovement(c.first().getDeltaMovement().multiply(1, 0, 1).add(0, -0.1, 0));
+        }, new Vec3(-6, 7, -6), new Vec3(0, 9, 0), false));
     }
 
     private static void defineMindScenes() {
@@ -258,10 +329,122 @@ public final class DevShowcase {
 
     private static int uiEntityId = -1;
 
+    // ------------------------------------------------------------------ lair tour (-Dgorewidow.showcase.lair=true)
+    private static int lairStage;
+    private static int lairWait;
+    private static BlockPos lairChunk;
+    private static GorewidowEntity lairWidow;
+    private static Vec3 lairHomeSeen;
+
+    private static void lookFrom(ServerPlayer player, ServerLevel level, Vec3 cam, Vec3 at) {
+        Vec3 d = at.subtract(cam);
+        float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
+        float pitch = (float) -Math.toDegrees(Math.atan2(d.y, d.horizontalDistance()));
+        player.teleportTo(level, cam.x, cam.y - player.getEyeHeight(), cam.z, yaw, pitch);
+    }
+
+    private static void lairTour(Minecraft mc, MinecraftServer server) {
+        lairWait++;
+        mc.options.hideGui = true;
+        ServerLevel level = server.overworld();
+        ServerPlayer player = server.getPlayerList().getPlayers().get(0);
+        switch (lairStage) {
+            case 0 -> server.execute(() -> {
+                player.setGameMode(GameType.SPECTATOR);
+                level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
+                level.setDayTime(6000);
+                lairChunk = com.vladosiwe.gorewidow.dev.DevServerHooks.locateLair(level, BlockPos.ZERO);
+                LOGGER.info("showcase lair at {}", lairChunk);
+                player.teleportTo(level, lairChunk.getX() + 8, 200, lairChunk.getZ() + 8, 0, 90);
+                player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.NIGHT_VISION, 100000, 0, false, false));
+                lairStage = 1;
+                lairWait = 0;
+            });
+            case 1 -> {
+                if (lairWait % 20 == 0) {
+                    server.execute(() -> {
+                        for (GorewidowEntity w : level.getEntitiesOfClass(GorewidowEntity.class,
+                                new net.minecraft.world.phys.AABB(lairChunk).inflate(80, 400, 80), GorewidowEntity::hasLair)) {
+                            lairWidow = w;
+                        }
+                        if (lairWidow != null && lairStage == 1) {
+                            BlockPos e = lairWidow.getLairEntrance();
+                            Vec3 home = Vec3.atCenterOf(lairWidow.getLairHome());
+                            lairHomeSeen = home;
+                            Vec3 out = Vec3.atCenterOf(e).subtract(home).multiply(1, 0, 1).normalize();
+                            LOGGER.info("showcase lair: entrance {} home {} widow at {}", e, lairWidow.getLairHome(), lairWidow.blockPosition());
+                            lookFrom(player, level, Vec3.atCenterOf(e).add(out.scale(9)).add(0, 4, 0), Vec3.atCenterOf(e).add(0, -1, 0));
+                            lairStage = 2;
+                            lairWait = 0;
+                        }
+                    });
+                }
+                if (lairWait > 1200) {
+                    LOGGER.info("showcase lair: no Gorewidow found");
+                    mc.stop();
+                }
+            }
+            case 2 -> {
+                if (lairWait == 120) {
+                    Screenshot.grab(mc.gameDirectory, "gorewidow_lair_00_entrance.png", mc.getMainRenderTarget(), m -> {});
+                    server.execute(() -> {
+                        Vec3 w = lairWidow.position();
+                        Vec3 cam = lairHomeSeen.add(5, 1.5, 3);
+                        lookFrom(player, level, cam, w.add(0, 1, 0));
+                        lairStage = 3;
+                        lairWait = 0;
+                    });
+                }
+            }
+            case 3 -> {
+                if (lairWait == 60) {
+                    Screenshot.grab(mc.gameDirectory, "gorewidow_lair_01_den.png", mc.getMainRenderTarget(), m -> {});
+                    server.execute(() -> {
+                        level.setDayTime(14000);
+                        LOGGER.info("showcase lair: night falls, widow at {}", lairWidow.blockPosition());
+                        lairStage = 4;
+                        lairWait = 0;
+                    });
+                }
+            }
+            case 4 -> {
+                if (lairWait % 100 == 0) {
+                    server.execute(() -> LOGGER.info("showcase lair: night t+{} widow at {} ({} from home)", lairWait, lairWidow.blockPosition(),
+                            Math.round(lairWidow.position().distanceTo(lairHomeSeen))));
+                }
+                if (lairWait == 900) {
+                    server.execute(() -> {
+                        Vec3 w = lairWidow.position();
+                        lookFrom(player, level, w.add(6, 4, 6), w.add(0, 1, 0));
+                        lairStage = 5;
+                        lairWait = 0;
+                    });
+                }
+            }
+            case 5 -> {
+                if (lairWait == 40) {
+                    Screenshot.grab(mc.gameDirectory, "gorewidow_lair_02_night_hunt.png", mc.getMainRenderTarget(), m -> {});
+                }
+                if (lairWait == 45) {
+                    mc.stop();
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         MinecraftServer server = mc.getSingleplayerServer();
         if (mc.level == null || mc.player == null || server == null) {
+            return;
+        }
+        if (Boolean.getBoolean("gorewidow.showcase.lair")) {
+            globalTicks++;
+            if (globalTicks > 60) {
+                lairTour(mc, server);
+            }
             return;
         }
         globalTicks++;
