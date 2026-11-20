@@ -173,6 +173,34 @@ vial[8, 4] = vial[9, 4] = (255, 255, 255, 220)
 vial[10, 11] = (255, 120, 120, 255)
 save(Image.fromarray(vial, "RGBA"), A, "textures/item/blood_vial.png")
 
+# status effect icon (18x18): a silk web with a dark outline, read on the effect HUD and inventory
+web = np.zeros((18, 18, 4), dtype=np.uint8)
+cx = cy = 8.5
+silk = (236, 232, 222, 255)
+for i in range(8):                                   # radial threads
+    ang = i * math.pi / 4 + 0.2
+    for t in np.linspace(0, 8.4, 40):
+        x, y = int(round(cx + math.cos(ang) * t)), int(round(cy + math.sin(ang) * t))
+        if 0 <= x < 18 and 0 <= y < 18:
+            web[y, x] = silk
+for r in (2.6, 4.9, 7.2):                            # spiral rings, sagging between threads
+    for k in range(8):
+        a0, a1 = k * math.pi / 4 + 0.2, (k + 1) * math.pi / 4 + 0.2
+        for t in np.linspace(0, 1, 24):
+            ang = a0 + (a1 - a0) * t
+            rr = r - 0.7 * math.sin(math.pi * t)
+            x, y = int(round(cx + math.cos(ang) * rr)), int(round(cy + math.sin(ang) * rr))
+            if 0 <= x < 18 and 0 <= y < 18:
+                web[y, x] = (214, 208, 196, 255)
+web[8:10, 8:10] = (150, 20, 30, 255)                 # the blood drop caught in the middle
+outline = web.copy()
+for y in range(18):
+    for x in range(18):
+        if web[y, x, 3] == 0 and any(0 <= y + dy < 18 and 0 <= x + dx < 18 and web[y + dy, x + dx, 3] > 0
+                                     for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            outline[y, x] = (30, 26, 24, 200)
+save(Image.fromarray(outline, "RGBA"), A, "textures/mob_effect/webbed.png")
+
 harness = rgba(16, 16)
 LEATHER = (110, 68, 36, 255)
 DARK = (72, 42, 22, 255)
@@ -376,9 +404,10 @@ en = {
     "message.gorewidow.command.wander": "Wander",
     "message.gorewidow.controls": "[%s] web  [%s] bite  [%s]/[%s] reel  [%s] leap, hold: parachute  [%s] slingshot  [%s] vision  [%s] weapon stance",
     "key.gorewidow.stance": "Weapon stance (rear up, use items)",
-    "key.gorewidow.camera_tilt": "Tilt camera with the mount",
-    "message.gorewidow.camera_tilt_on": "Camera tilts with the mount",
-    "message.gorewidow.camera_tilt_off": "Camera stays level",
+    "key.gorewidow.camera_tilt": "Camera mode on the mount (level / gentle / full)",
+    "message.gorewidow.camera_mode.off": "Camera: level horizon",
+    "message.gorewidow.camera_mode.gentle": "Camera: banks gently with the mount",
+    "message.gorewidow.camera_mode.full": "Camera: turns with the mount, also upside down",
     "subtitles.gorewidow.ambient": "Gorewidow chitters",
     "subtitles.gorewidow.hurt": "Gorewidow hurts",
     "subtitles.gorewidow.death": "Gorewidow dies",
@@ -539,9 +568,10 @@ ru = {
     "message.gorewidow.command.wander": "Бродить",
     "message.gorewidow.controls": "[%s] паутина  [%s] укус  [%s]/[%s] трос  [%s] прыжок, держать: парашют  [%s] рогатка  [%s] зрение  [%s] боевая стойка",
     "key.gorewidow.stance": "Боевая стойка (встать на лапы, оружие)",
-    "key.gorewidow.camera_tilt": "Наклон камеры вместе с пауком",
-    "message.gorewidow.camera_tilt_on": "Камера наклоняется вместе с пауком",
-    "message.gorewidow.camera_tilt_off": "Камера держит горизонт",
+    "key.gorewidow.camera_tilt": "Режим камеры на пауке (ровно / мягко / полностью)",
+    "message.gorewidow.camera_mode.off": "Камера: горизонт ровный",
+    "message.gorewidow.camera_mode.gentle": "Камера: мягкий наклон вместе с пауком",
+    "message.gorewidow.camera_mode.full": "Камера: поворачивается вместе с пауком, вплоть до потолка",
     "subtitles.gorewidow.ambient": "Кровавая вдова стрекочет",
     "subtitles.gorewidow.hurt": "Кровавая вдова ранена",
     "subtitles.gorewidow.death": "Кровавая вдова погибает",

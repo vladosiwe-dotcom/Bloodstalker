@@ -167,6 +167,8 @@ public final class GorewidowRig {
     }
 
     private float claspHold;
+    /** Body bone transform (model px, internal space) as of the last model update. */
+    private final Matrix4f bodyMatrix = new Matrix4f();
     @Nullable
     private Vec3 lastLerped;
     private Vec3 positionCorrection = Vec3.ZERO;
@@ -177,6 +179,24 @@ public final class GorewidowRig {
     private static final float RIDE_LIFT_LOOK_UP = 5.0F;
     /** Leg roll (deg) that turns the membranes flat while sailing. */
     private static final float SAIL_ROLL = 70.0F;
+
+    /** A point given in the body bone's own frame (model px) to world space: follows bob, tilt and lift. */
+    public Vec3 bodyPointToWorld(float x, float y, float z) {
+        Vector3f v = this.bodyMatrix.transformPosition(new Vector3f(x, y, z));
+        return this.modelToWorld(v.x, v.y, v.z);
+    }
+
+    /** A direction in the body bone's frame to a world-space unit vector. */
+    public Vec3 bodyDirToWorld(float x, float y, float z) {
+        Vector3f d = this.bodyMatrix.transformDirection(new Vector3f(x, y, z));
+        this.orientation.transform(d);
+        return new Vec3(d).normalize();
+    }
+
+    /** How far (model px) the body is currently held up away from its rider. */
+    public float rideLift() {
+        return this.rideLift;
+    }
 
     public Vec3 modelToWorld(float x, float y, float z) {
         float k = PX * this.scale;
@@ -456,6 +476,7 @@ public final class GorewidowRig {
             }
         }
         Matrix4f invBody = new Matrix4f(bodyMatrix).invert();
+        this.bodyMatrix.set(bodyMatrix);
 
         float time = (widow.tickCount + partial) * 0.05F;
         net.minecraft.world.entity.LivingEntity grabbed = widow.getDrainTarget();
@@ -592,9 +613,10 @@ public final class GorewidowRig {
                 float squeeze = Mth.sin(time * 3 + i) * 0.25F;
                 float px = Math.signum(hip[0]) * ((front ? 5.2F : 4.6F) + squeeze);
                 // a little toward the rider's chest side, so the hooks close under them
-                float py = chest[1] + along * Mth.sin(hang) - 0.8F * Mth.cos(hang);
+                float py = chest[1] - this.rideLift + along * Mth.sin(hang) - 0.8F * Mth.cos(hang);
                 float pz = chest[2] - along * Mth.cos(hang) - 0.8F * Mth.sin(hang);
-                Vector3f target = invBody.transformPosition(new Vector3f(px, py, pz));
+                // the rider hangs in the body's own frame, so the hold points are body-local as they are
+                Vector3f target = new Vector3f(px, py, pz);
                 float[] hold = solveClasp(target.x - hip[0], target.y - hip[1], target.z - hip[2], c);
                 hold[0] = Mth.wrapDegrees((hold[0] - GorewidowAnatomy.CLASP_REST_YAW[i]) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
                 angles = mix(angles, hold, this.claspHold);

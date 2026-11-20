@@ -567,6 +567,26 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 100)
+    public static void grabbedPlayerShowsTheCaptureEffectUntilReleased(GameTestHelper helper) {
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer victim = helper.makeMockServerPlayerInLevel();
+        victim.setGameMode(GameType.SURVIVAL);
+        victim.moveTo(widow.getX(), widow.getY(), widow.getZ() - 2.0);
+        widow.startDrain(victim);
+        helper.runAfterDelay(15, () -> {
+            helper.assertTrue(widow.getDrainTarget() == victim, "did not grab the player");
+            net.minecraft.world.effect.MobEffectInstance effect = victim.getEffect(com.vladosiwe.gorewidow.registry.ModEffects.WEBBED);
+            helper.assertTrue(effect != null, "a held player has no capture effect");
+            helper.assertTrue(effect.isVisible() && effect.showIcon(), "the capture effect hides its icon");
+            widow.stopDrain();
+            helper.assertFalse(victim.hasEffect(com.vladosiwe.gorewidow.registry.ModEffects.WEBBED), "effect stays after release");
+            victim.discard();
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 120)
     public static void drainingHurtsPreyAndHeals(GameTestHelper helper) {
         GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));

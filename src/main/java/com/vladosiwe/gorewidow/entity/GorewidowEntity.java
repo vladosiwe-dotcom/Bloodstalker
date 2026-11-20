@@ -1863,7 +1863,12 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     public void stopDrain() {
         if (this.isDraining()) {
+            LivingEntity held = this.getDrainTarget();
             this.entityData.set(DATA_DRAIN_ID, -1);
+            // let go: the grip's binding ends with it
+            if (held != null && !this.level().isClientSide && held.hasEffect(ModEffects.WEBBED)) {
+                held.removeEffect(ModEffects.WEBBED);
+            }
         }
     }
 

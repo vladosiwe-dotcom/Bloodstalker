@@ -51,8 +51,11 @@ public final class GorewidowClient {
     public static final KeyMapping KEY_WHISTLE_MOVE = new KeyMapping("key.gorewidow.whistle_move", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_U, CATEGORY);
     public static final KeyMapping KEY_WHISTLE_CALL = new KeyMapping("key.gorewidow.whistle_call", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Y, CATEGORY);
     public static final KeyMapping KEY_CAMERA_TILT = new KeyMapping("key.gorewidow.camera_tilt", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
-    private static boolean cameraTilt = true;
     private static float cameraRoll;
+    private static float cameraRollTarget;
+    private static boolean turnTracked;
+    private static float lastYRot;
+    private static float lastXRot;
     private static long cameraRollTime;
     private static boolean lastSprint;
     private static boolean manualStance;
@@ -65,7 +68,8 @@ public final class GorewidowClient {
     private static final Set<Player> POSED = Collections.newSetFromMap(new IdentityHashMap<>());
     private static GorewidowEntity lastMount;
 
-    public GorewidowClient(IEventBus modBus) {
+    public GorewidowClient(IEventBus modBus, net.neoforged.fml.ModContainer container) {
+        container.registerConfig(net.neoforged.fml.config.ModConfig.Type.CLIENT, GorewidowClientConfig.SPEC);
         modBus.addListener(GorewidowClient::registerRenderers);
         modBus.addListener(GorewidowClient::registerParticles);
         modBus.addListener(GorewidowClient::registerKeys);
@@ -219,9 +223,11 @@ public final class GorewidowClient {
                 manualStance = !manualStance;
             }
             while (KEY_CAMERA_TILT.consumeClick()) {
-                cameraTilt = !cameraTilt;
+                GorewidowClientConfig.CameraMode next = GorewidowClientConfig.CAMERA.get().next();
+                GorewidowClientConfig.CAMERA.set(next);
+                GorewidowClientConfig.SPEC.save();
                 player.displayClientMessage(net.minecraft.network.chat.Component.translatable(
-                        cameraTilt ? "message.gorewidow.camera_tilt_on" : "message.gorewidow.camera_tilt_off"), true);
+                        "message.gorewidow.camera_mode." + next.name().toLowerCase(java.util.Locale.ROOT)), true);
             }
             boolean stance = manualStance || isRangedWeapon(player.getMainHandItem()) || isRangedWeapon(player.getOffhandItem());
             if (stance != lastStance) {
@@ -293,11 +299,15 @@ public final class GorewidowClient {
         Vec3 fwd = rig.forward();
         // hanging under the belly at an angle: head up and forward, chest toward the ground ahead,
         // legs trailing back and down, held at the shoulders and hips by the claspers
+        // everything in the body bone's frame: the rider moves with every bob, lean, lift and turn of
+        // the belly above them, on any surface, in jumps and in the sail
+        up = rig.bodyDirToWorld(0, 1, 0);
+        fwd = rig.bodyDirToWorld(0, 0, -1);
         float tilt = GorewidowEntity.RIDER_TILT;
         Vec3 bodyAxis = fwd.scale(Mth.cos(tilt)).add(up.scale(Mth.sin(tilt)));
         Vec3 chestDir = fwd.scale(Mth.sin(tilt)).subtract(up.scale(Mth.cos(tilt)));
         float[] c = GorewidowEntity.RIDER_CHEST;
-        Vec3 chest = rig.modelToWorld(c[0], c[1], c[2]);
+        Vec3 chest = rig.bodyPointToWorld(c[0], c[1] - rig.rideLift(), c[2]);
         Vec3 feet = chest.subtract(bodyAxis.scale(1.1));
         Vec3 offset = feet.subtract(player.getPosition(partial));
 
@@ -389,31 +399,87 @@ public final class GorewidowClient {
     }
 
     /**
-     * The rider's view banks with the mount: on a wall beside you the horizon tilts toward it, on a
-     * slope it leans with the body. Kept within 50 degrees so the view never flips; N turns it off.
+     * The rider's view follows the mount's body: it banks on walls and slopes and, in FULL mode, turns
+     * all the way over on a ceiling. The target angle is the body's up direction seen around the view
+     * axis; it is approached along the shortest way round so it never spins. While the view is banked
+     * the mouse turns relative to the screen (see {@link #compensateTurn}).
      */
     private static void onCameraAngles(net.neoforged.neoforge.client.event.ViewportEvent.ComputeCameraAngles event) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
+        GorewidowClientConfig.CameraMode mode = GorewidowClientConfig.CAMERA.get();
         float target = 0;
-        if (cameraTilt && player != null && mc.getCameraEntity() == player
+        if (mode != GorewidowClientConfig.CameraMode.OFF && player != null && mc.getCameraEntity() == player
                 && player.getVehicle() instanceof GorewidowEntity mount && !mount.isWeaponStance()) {
             GorewidowRig rig = GorewidowRigs.peek(mount);
             if (rig != null && rig.isInitialised()) {
                 float yaw = (float) event.getYaw() * Mth.DEG_TO_RAD;
+                float pitch = (float) event.getPitch() * Mth.DEG_TO_RAD;
+                Vec3 look = new Vec3(-Mth.sin(yaw) * Mth.cos(pitch), -Mth.sin(pitch), Mth.cos(yaw) * Mth.cos(pitch));
                 Vec3 right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
-                double side = Mth.clamp(rig.up().dot(right), -1, 1);
+                Vec3 viewUp = right.cross(look);
+                Vec3 bodyUp = rig.bodyDirToWorld(0, 1, 0);
                 float lift = mount.getMountLift((float) event.getPartialTick());
-                target = Mth.clamp((float) Math.toDegrees(Math.asin(side)), -50, 50) * lift;
+                if (mode == GorewidowClientConfig.CameraMode.GENTLE) {
+                    float limit = GorewidowClientConfig.GENTLE_LIMIT.get().floatValue();
+                    target = Mth.clamp((float) Math.toDegrees(Math.asin(Mth.clamp(bodyUp.dot(right), -1, 1))), -limit, limit) * lift;
+                } else {
+                    Vec3 seen = bodyUp.subtract(look.scale(bodyUp.dot(look)));
+                    if (seen.lengthSqr() > 0.02) {
+                        // looking straight along the body's up axis gives no roll: keep the last one
+                        cameraRollTarget = (float) Math.toDegrees(Math.atan2(seen.dot(right), seen.dot(viewUp)));
+                    }
+                    target = cameraRollTarget * lift;
+                }
             }
+        } else {
+            cameraRollTarget = 0;
         }
         long now = net.minecraft.Util.getMillis();
         float dt = Math.min(0.1F, (now - cameraRollTime) / 1000.0F);
         cameraRollTime = now;
-        cameraRoll += (target - cameraRoll) * (1 - (float) Math.exp(-6.0F * dt));
+        float diff = Mth.wrapDegrees(target - cameraRoll);
+        cameraRoll = Mth.wrapDegrees(cameraRoll + diff * (1 - (float) Math.exp(-5.0F * dt)));
+        compensateTurn(player, mode);
         if (Math.abs(cameraRoll) > 0.01F) {
             event.setRoll(event.getRoll() + cameraRoll);
         }
+    }
+
+    /**
+     * With the view rolled, raw mouse movement would turn the head in world terms (upside down, moving
+     * the mouse right would swing the view left). The look change since the last frame is re-applied
+     * rotated by the roll, so the view always moves the way the mouse does on screen.
+     */
+    private static void compensateTurn(@javax.annotation.Nullable LocalPlayer player, GorewidowClientConfig.CameraMode mode) {
+        if (player == null || !(player.getVehicle() instanceof GorewidowEntity)) {
+            turnTracked = false;
+            return;
+        }
+        float yRot = player.getYRot();
+        float xRot = player.getXRot();
+        if (turnTracked && mode != GorewidowClientConfig.CameraMode.OFF && GorewidowClientConfig.TURN_RELATIVE_TO_VIEW.get()
+                && Math.abs(cameraRoll) > 2.0F) {
+            float dYaw = Mth.wrapDegrees(yRot - lastYRot);
+            float dPitch = xRot - lastXRot;
+            if (Math.abs(dYaw) > 1.0E-4F || Math.abs(dPitch) > 1.0E-4F) {
+                float r = cameraRoll * Mth.DEG_TO_RAD;
+                // screen vector (right, up) of the mouse move, turned into the unrolled view
+                float sx = dYaw;
+                float sy = -dPitch;
+                float wx = Mth.cos(r) * sx + Mth.sin(r) * sy;
+                float wy = -Mth.sin(r) * sx + Mth.cos(r) * sy;
+                yRot = lastYRot + wx;
+                xRot = Mth.clamp(lastXRot - wy, -90.0F, 90.0F);
+                player.setYRot(yRot);
+                player.setXRot(xRot);
+                player.yRotO = yRot;
+                player.xRotO = xRot;
+            }
+        }
+        lastYRot = yRot;
+        lastXRot = xRot;
+        turnTracked = true;
     }
 
     /** A slightly wider field of view while hanging under the mount, to see more around it. */

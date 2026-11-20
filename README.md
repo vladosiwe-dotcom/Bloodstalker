@@ -29,7 +29,8 @@ spiders do:
 - **Web swing.** It crosses long gaps and climbs to high targets by firing a line at a high anchor,
   pumping the swing and letting go at the top of the arc.
 - **Wall and ceiling crawling.** It climbs walls, crosses ceilings and wraps around edges.
-- **Blood drain.** It lunges, clamps its fangs in, and wraps its front legs around the prey.
+- **Blood drain.** While held, the victim carries the **Webbed** status effect (its icon shows in the
+  HUD); it is removed the moment the Gorewidow lets go. It lunges, clamps its fangs in, and wraps its front legs around the prey.
   Anything up to player size is lifted off the ground and held against its mouth while it drinks
   and heals itself.
 
@@ -151,7 +152,7 @@ takes 35% less damage and the mount carries 60 more weight.
 | G | Bite what you look at. Biting a webbed or wounded target starts a blood drain that heals the mount |
 | V | Toggle **spider vision** |
 | B | **Weapon stance**: it rears up almost vertically on its hind legs and holds you high up and out in front, cradled in its front legs, so you can shoot, fight and use any item. Turns on by itself when you hold a bow, crossbow or trident, or anything in the `gorewidow:mounted_weapons` tag (for modded guns or staves). It moves at half speed, its web, bite and slingshot are put away, and your projectiles fly past it |
-| N | Tilt the camera with the mount on/off |
+| N | Camera mode: full turn / gentle bank / level |
 | Sprint key | Sprint (costs stamina) |
 | Shift | Dismount |
 
@@ -163,8 +164,13 @@ takes 35% less damage and the mount carries 60 more weight.
   planted right next to your eyes is left out of your own view.
 - **Room to see.** While carrying you it holds its belly up and away from you, higher still when
   you look up, and your field of view widens a little.
-- **Your view banks with it**: on a wall or slope the horizon tilts with the body (up to 50
-  degrees, smoothly). **N** toggles this.
+- **Your view turns with it**: on a wall the horizon banks with the body, on a ceiling the view turns
+  all the way over, always along the shortest way and smoothly. While the view is turned, the mouse
+  turns relative to the screen (right is always right). **N** cycles the mode: full / gentle (bank
+  limited to 50 degrees) / level horizon; it is saved in `config/gorewidow-client.toml`
+  (`bankWithMount`, `gentleLimitDegrees`, `turnRelativeToView`).
+- **Held in its body frame**: you hang from the belly bone itself, so every bob, lean, lift and turn
+  of the body carries you along, on walls, ceilings, in leaps and in the sail.
 
 Passives, after ARK's Bloodstalker:
 - **Yanks riders off their mounts.** A wild Gorewidow's web pulls a mounted player out of the saddle.
@@ -205,7 +211,7 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 24 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 25 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts

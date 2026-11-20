@@ -209,6 +209,25 @@ public final class DevShowcase {
                 local.xRotO = -5;
             }
         }, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
+        SCENES.add(new Scene("riding_ceiling_pov", 80, c -> {
+            // hanging from a ceiling: the rider's view turns over with the mount
+            c.fill(-6, 6, -6, 6, 6, 6, Blocks.DEEPSLATE_TILES.defaultBlockState());
+            c.fill(-6, 0, 5, 6, 5, 5, Blocks.STONE_BRICKS.defaultBlockState());
+            GorewidowEntity w = c.widow(0, 6 - 2.4, 0, 0);
+            w.setSurface(Direction.UP);
+            c.player.setGameMode(GameType.SURVIVAL);
+            w.tame(c.player);
+            c.player.moveTo(w.getX(), w.getY(), w.getZ(), 0, 0);
+            c.player.startRiding(w, true);
+        }, c -> {
+            net.minecraft.client.player.LocalPlayer local = Minecraft.getInstance().player;
+            if (local != null) {
+                local.setYRot(0);
+                local.setXRot(-20);
+                local.yRotO = 0;
+                local.xRotO = -20;
+            }
+        }, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
         SCENES.add(new Scene("riding_pov", 30, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 0);
             c.player.setGameMode(GameType.CREATIVE);
@@ -436,6 +455,22 @@ public final class DevShowcase {
     }
 
     private static void defineUiScenes() {
+        SCENES.add(new Scene("ui_capture", 30, c -> {
+            c.player.setGameMode(GameType.SURVIVAL);
+            // pets left in the world from other scenes would rush to defend the player
+            c.level.getEntities(com.vladosiwe.gorewidow.registry.ModEntities.GOREWIDOW.get(), e -> true).forEach(GorewidowEntity::discard);
+            GorewidowEntity w = c.widow(0, 0, 2.2, 180);
+            Vec3 stand = c.at(0, 0, 0);
+            c.player.teleportTo(c.level, stand.x, stand.y, stand.z, 0, 10);
+        }, c -> {
+            if (ticks == 6) {
+                c.first().startDrain(c.player);
+            }
+            if (ticks == 28) {
+                LOGGER.info("capture effects client={} draining={}", Minecraft.getInstance().player.getActiveEffects(), c.first().getDrainTarget());
+            }
+            c.player.setHealth(c.player.getMaxHealth());
+        }, new Vec3(0, 0, 0), new Vec3(0, 0, 0), true));
         SCENES.add(new Scene("ui_taming", 200, c -> {
             GorewidowEntity w = c.widow(0, 0, 0, 180);
             w.getStats().rollWild(w.getRandom());
