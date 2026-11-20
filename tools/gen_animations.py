@@ -257,6 +257,16 @@ anim("mount", 1.7, False, merge(
     {"palp_r": {"rotation": kf([(0, [30, 10, 0]), (0.3, [70, -10, 0]), (0.9, [85, -14, 0]), (1.4, [55, 0, 0]), (1.7, [30, 10, 0])])}},
 ))
 
+# power leap: the coiled body uncoils in one thrust, abdomen whipping back, then streamlines
+anim("power_leap", 0.6, False, merge(
+    {"body": {"position": kf([(0, [0, -4.0, 0.5]), (0.08, [0, 3.5, -1.0]), (0.25, [0, 1.5, -0.5]), (0.6, [0, 0, 0])], "easeoutquad"),
+              "rotation": kf([(0, [10, 0, 0]), (0.08, [-16, 0, 0]), (0.3, [-6, 0, 0]), (0.6, [0, 0, 0])], "easeoutquad")}},
+    {"abdomen": {"rotation": kf([(0, [-20, 0, 0]), (0.1, [6, 0, 0]), (0.35, [-16, 0, 0]), (0.6, [-12, 0, 0])])}},
+    {"head": {"rotation": kf([(0, [12, 0, 0]), (0.1, [-14, 0, 0]), (0.6, [0, 0, 0])])}},
+    {"palp_l": {"rotation": kf([(0, [60, 0, 0]), (0.12, [10, -25, 0]), (0.6, [30, -10, 0])])}},
+    {"palp_r": {"rotation": kf([(0, [60, 0, 0]), (0.12, [10, 25, 0]), (0.6, [30, 10, 0])])}},
+))
+
 # lunge and clamp: the body shoots forward and down, fangs flare, then it hauls the victim in
 anim("grab", 0.7, False, merge(
     {"body": {"position": kf([(0, [0, 0, 0]), (0.12, [0, 1.0, 1.5]), (0.28, [0, -2.5, -3.5]), (0.5, [0, -1.0, -1.0]), (0.7, [0, -1.6, -0.6])], "easeoutquad"),

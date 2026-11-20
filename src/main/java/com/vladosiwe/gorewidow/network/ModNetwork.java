@@ -1,5 +1,7 @@
 package com.vladosiwe.gorewidow.network;
 
+import net.minecraft.util.Mth;
+
 import com.vladosiwe.gorewidow.entity.AggressionMode;
 import com.vladosiwe.gorewidow.entity.GorewidowCommand;
 import com.vladosiwe.gorewidow.entity.GorewidowEntity;
@@ -22,13 +24,21 @@ public final class ModNetwork {
     private ModNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("3");
+        PayloadRegistrar registrar = event.registrar("4");
         registrar.playToServer(MountActionPayload.TYPE, MountActionPayload.STREAM_CODEC, ModNetwork::handleMountAction);
         registrar.playToServer(SurfaceSyncPayload.TYPE, SurfaceSyncPayload.STREAM_CODEC, ModNetwork::handleSurfaceSync);
         registrar.playToServer(CreatureActionPayload.TYPE, CreatureActionPayload.STREAM_CODEC, ModNetwork::handleCreatureAction);
         registrar.playToServer(RenamePayload.TYPE, RenamePayload.STREAM_CODEC, ModNetwork::handleRename);
         registrar.playToServer(WhistlePayload.TYPE, WhistlePayload.STREAM_CODEC, ModNetwork::handleWhistle);
         registrar.playToServer(SlingshotPayload.TYPE, SlingshotPayload.STREAM_CODEC, ModNetwork::handleSlingshot);
+        registrar.playToServer(JumpChargePayload.TYPE, JumpChargePayload.STREAM_CODEC, ModNetwork::handleJumpCharge);
+    }
+
+    private static void handleJumpCharge(JumpChargePayload payload, IPayloadContext context) {
+        Player player = context.player();
+        if (player.getVehicle() instanceof GorewidowEntity mount && mount.getControllingPassenger() == player) {
+            mount.setJumpCharge(Mth.clamp(payload.charge(), 0, 100) / 100.0F);
+        }
     }
 
     private static void handleMountAction(MountActionPayload payload, IPayloadContext context) {

@@ -191,6 +191,16 @@ public final class GorewidowRig {
     private Vec3 lastLerped;
     private Vec3 positionCorrection = Vec3.ZERO;
     private float sail;
+    private float charge;
+    private float trail;
+    private float landPrep;
+    /** 0..1 how soon it will touch down (from a ray cast along its flight each tick). */
+    private float landAhead;
+    /** Landing compression, kicked on touchdown and springing back. */
+    private float absorb;
+    private float absorbVel;
+    private boolean wasSupported = true;
+    private double lastFallSpeed;
     private float rideLift;
     /** Body lift (model px) while carrying a rider, and the extra when the rider looks up. */
     private static final float RIDE_LIFT = 5.0F;
@@ -260,6 +270,7 @@ public final class GorewidowRig {
         WebMode mode = widow.getWebMode();
         boolean supported = !widow.isDeadOrDying() && (widow.onGround() || !widow.isOnFloor()) && !(mode.isRope() && !widow.onGround());
         this.ikTarget = supported ? 1.0F : 0.0F;
+        this.updateLanding(widow, supported);
 
         // web line bookkeeping for the retract effect and tension twang
         Vec3 lineEnd = this.currentLineEnd(widow, 1.0F);
@@ -538,6 +549,38 @@ public final class GorewidowRig {
                 CollisionContext.empty())).getType() == HitResult.Type.BLOCK;
     }
 
+    /**
+     * Landing: while flying it looks ahead along its path (one ray per tick) so the legs reach for
+     * the surface before contact; on touchdown the body takes the impact in its legs (a spring that
+     * sinks in proportion to the fall speed and recovers).
+     */
+    private void updateLanding(GorewidowEntity widow, boolean supported) {
+        Vec3 v = widow.getDeltaMovement();
+        if (!supported) {
+            this.lastFallSpeed = Math.max(this.lastFallSpeed, Math.max(-v.y, v.horizontalDistance() * 0.4));
+            Vec3 from = widow.getBodyCenter();
+            Vec3 to = from.add(v.scale(10)).subtract(0, widow.getBbHeight() * 0.5, 0);
+            BlockHitResult hit = widow.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                    CollisionContext.empty()));
+            if (hit.getType() == HitResult.Type.BLOCK) {
+                double frac = hit.getLocation().distanceTo(from) / Math.max(1.0E-3, to.distanceTo(from));
+                this.landAhead = (float) Mth.clamp(1.2 - frac, 0, 1);
+            } else {
+                this.landAhead = 0;
+            }
+        } else {
+            if (!this.wasSupported && this.lastFallSpeed > 0.25) {
+                this.absorbVel += (float) Mth.clamp(this.lastFallSpeed * 1.4, 0.3, 1.6);
+            }
+            this.lastFallSpeed = 0;
+            this.landAhead = 0;
+        }
+        this.wasSupported = supported;
+        // damped spring, per tick
+        this.absorbVel += -this.absorb * 0.45F - this.absorbVel * 0.35F;
+        this.absorb = Mth.clamp(this.absorb + this.absorbVel * 0.5F, 0, 1.4F);
+    }
+
     /** Leans with the motion: forward when speeding up, back when braking, into turns. */
     private void updateLean(GorewidowEntity widow, Vec3 velocity) {
         Vec3 f = this.forward();
@@ -615,7 +658,15 @@ public final class GorewidowRig {
             liftTarget = (RIDE_LIFT + RIDE_LIFT_LOOK_UP * lookUp) * widow.getMountLift(partial);
         }
         this.rideLift += (liftTarget - this.rideLift) * blend * 0.6F;
-        float sailTarget = !dead && !roped && widow.isGliding() && !widow.onGround() ? 1.0F : 0.0F;
+        float sailTarget = !dead && !roped && widow.isGliding() && !widow.onGround() && widow.isOnFloor() ? 1.0F : 0.0F;
+        // power-jump charge: the body sinks and gathers itself on its planted legs
+        this.charge += (widow.getJumpCharge() - this.charge) * blend * 0.8F;
+        // in flight: legs stream back after a hard launch, then reach for whatever it will land on
+        boolean flying = !dead && !roped && !widow.onGround() && widow.isOnFloor() && !widow.isPassenger() && this.ikTarget < 0.5F;
+        Vec3 vel = widow.getDeltaMovement();
+        float trailTarget = flying && this.sail < 0.5F && vel.length() > 0.7 && vel.y > -0.2 ? 1.0F : 0.0F;
+        this.trail += (trailTarget - this.trail) * blend * 0.7F;
+        this.landPrep += ((flying ? this.landAhead : 0.0F) - this.landPrep) * blend * 0.9F;
         this.sail += (sailTarget - this.sail) * blend * 0.8F;
 
         // ---- feet for this frame
@@ -656,12 +707,17 @@ public final class GorewidowRig {
             this.lowerForSupport += (lowerTarget - this.lowerForSupport) * blend * 0.5F;
             this.leanPitch += (this.leanPitchTarget - this.leanPitch) * blend * 0.4F;
             this.leanRoll += (this.leanRollTarget - this.leanRoll) * blend * 0.4F;
-            pitch += this.leanPitch * w;
+            pitch += this.leanPitch * w + this.charge * 0.16F * w + this.absorb * 0.12F;
             roll += this.leanRoll * w;
+            if (this.charge > 0.05F) {
+                // the strain shows: a fine tremor that grows with the charge
+                roll += Mth.sin((widow.tickCount + partial) * 2.7F) * 0.02F * this.charge;
+            }
             tilt.setRotX(pitch * (1 - rear) + rear * 1.18F);
             tilt.setRotZ(roll * (1 - rear));
             tilt.setRotY(0);
-            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F + this.rideLift - this.lowerForSupport * (1 - rear));
+            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F + this.rideLift - this.lowerForSupport * (1 - rear)
+                    - this.charge * 13.0F * w - this.absorb * 8.0F);
         }
 
         // ---- neck look
@@ -733,6 +789,16 @@ public final class GorewidowRig {
             pose = mix(pose, new float[]{0, (float) Math.toRadians(78), (float) Math.toRadians(-155), (float) Math.toRadians(-60)}, this.curl);
 
             float[] angles = mix(pose, ik, this.ikWeight);
+            if (this.trail > 0.01F) {
+                // hard launch: legs swept long and straight, trailing
+                float[] streamed = {0, (float) Math.toRadians(4), (float) Math.toRadians(-38), (float) Math.toRadians(-20)};
+                angles = mix(angles, streamed, this.trail * (1 - this.ikWeight));
+            }
+            if (this.landPrep > 0.01F) {
+                // about to land: legs reach down and out toward the surface, knees soft
+                float[] reach = {0, (float) Math.toRadians(-6), (float) Math.toRadians(-64), (float) Math.toRadians(-36)};
+                angles = mix(angles, reach, this.landPrep * (1 - this.ikWeight));
+            }
             float rearing = widow.getStanceBlend(partial);
             if (rearing > 0 && idx < 2) {
                 float[] reared = idx == 0

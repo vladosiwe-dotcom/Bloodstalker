@@ -126,6 +126,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final EntityDataAccessor<Byte> DATA_FOLLOW = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Boolean> DATA_ALLOW_RIDERS = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_STANCE = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.BOOLEAN);
+    /** Power-jump charge 0..1 (the rider holds jump; the body sinks and gathers itself). */
+    private static final EntityDataAccessor<Float> DATA_JUMP_CHARGE = SynchedEntityData.defineId(GorewidowEntity.class, EntityDataSerializers.FLOAT);
 
     // ------------------------------------------------------------------ tuning
     public static final double WEB_RANGE = 36.0;
@@ -162,6 +164,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private static final RawAnimation LEAP = RawAnimation.begin().thenPlay("leap");
     private static final RawAnimation DISMOUNT = RawAnimation.begin().thenPlay("dismount");
     private static final RawAnimation GRAB = RawAnimation.begin().thenPlay("grab");
+    private static final RawAnimation POWER_LEAP = RawAnimation.begin().thenPlay("power_leap");
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -323,6 +326,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         builder.define(DATA_FOLLOW, (byte) GorewidowNursery.FollowDistance.MEDIUM.ordinal());
         builder.define(DATA_ALLOW_RIDERS, false);
         builder.define(DATA_STANCE, false);
+        builder.define(DATA_JUMP_CHARGE, 0.0F);
     }
 
     @Override
@@ -1172,9 +1176,46 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         this.calculateEntityAnimation(true);
     }
 
+    /**
+     * One tick of the membrane sail (after vanilla air drag was applied). A slow start hangs almost
+     * still for a moment; at speed (out of a power jump) the momentum is kept: the heading turns
+     * gently toward the rider's look while the sail costs only a little speed, and the fall is capped.
+     */
+    public static Vec3 glideStep(Vec3 v, Vec3 look, int glideTicks) {
+        Vec3 h = new Vec3(v.x, 0, v.z);
+        double speed = h.length() / AIR_DRAG;
+        Vec3 lookFlat = new Vec3(look.x, 0, look.z);
+        lookFlat = lookFlat.lengthSqr() > 1.0E-4 ? lookFlat.normalize() : Vec3.ZERO;
+        boolean slow = speed < 0.3;
+        double cap = glideTicks < HOVER_TICKS && slow ? -0.025 : -0.11;
+        Vec3 dir = speed > 1.0E-3 ? h.normalize().lerp(lookFlat, 0.06) : lookFlat;
+        dir = dir.lengthSqr() > 1.0E-4 ? dir.normalize() : Vec3.ZERO;
+        double newSpeed = Math.max(speed * 0.99, 0.2);
+        return new Vec3(dir.x * newSpeed, Math.max(v.y, cap), dir.z * newSpeed);
+    }
+
+    /** Vanilla horizontal air drag per tick. */
+    private static final double AIR_DRAG = 0.91;
+
     private void travelGround(Vec3 input) {
         Vec3 before = this.position();
+        Vec3 flying = this.getDeltaMovement();
         super.travel(input);
+        // flying into a wall or a ceiling: the legs catch it and it clings on, whoever is steering
+        if (!this.onGround() && !this.isInWater() && !this.getWebMode().isRope() && !this.isBaby() && this.tickCount > 5
+                && (this.horizontalCollision || this.verticalCollision && flying.y > 0.05)) {
+            Vec3 heading = this.horizontalCollision ? new Vec3(flying.x, 0, flying.z) : new Vec3(0, 1, 0);
+            Direction hit = this.findContact(heading, Direction.DOWN);
+            if (hit != null && hit != Direction.DOWN) {
+                this.setSurface(hit);
+                this.setDeltaMovement(Vec3.ZERO);
+                if (!this.level().isClientSide) {
+                    this.triggerAnim("action", "land");
+                }
+                this.glideTicks = 0;
+                return;
+            }
+        }
         if (this.onGround()) {
             this.usedAirJump = false;
             this.glideTicks = 0;
@@ -1185,12 +1226,7 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         } else if (this.riderGliding && this.getControllingPassenger() instanceof Player rider && this.getStamina() > 1.0F) {
             // membrane sail: legs spread wide, skin stretched flat. For a moment at the top it hangs
             // almost still in the air, then sinks slowly, drifting where the rider looks
-            Vec3 v = this.getDeltaMovement();
-            Vec3 look = rider.getLookAngle();
-            double cap = this.glideTicks < HOVER_TICKS ? -0.025 : -0.11;
-            if (v.y < cap) {
-                this.setDeltaMovement(v.x * 0.96 + look.x * 0.025, cap, v.z * 0.96 + look.z * 0.025);
-            }
+            this.setDeltaMovement(glideStep(this.getDeltaMovement(), rider.getLookAngle(), this.glideTicks));
             this.resetFallDistance();
             this.glideTicks++;
         } else if (!this.level().isClientSide && this.getControllingPassenger() == null && !this.getWebMode().isRope()
@@ -2400,9 +2436,27 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         }
     }
 
+    /** Test hook: the rider's leap as their client would perform it. */
+    public void performRiderLeap(Player rider, float power) {
+        this.executeRiderLeap(rider.getLookAngle(), power);
+    }
+
+    /** Same, along a given look direction (tests, showcase). */
+    public void performLeap(Vec3 look, float power) {
+        this.executeRiderLeap(look, power);
+    }
+
     private void executeRiderLeap(Player rider, float power) {
-        Vec3 look = rider.getLookAngle();
+        this.executeRiderLeap(rider.getLookAngle(), power);
+    }
+
+    private void executeRiderLeap(Vec3 look, float power) {
         WebMode mode = this.getWebMode();
+        boolean powered = power > 1.0F;
+        float charge = powered ? power - 1.0F : 0.0F;
+        if (powered) {
+            this.setJumpCharge(0.0F);
+        }
         if (mode.isRope()) {
             // let go of the line, keeping the swing's momentum plus a kick
             Vec3 v = this.getDeltaMovement();
@@ -2411,14 +2465,24 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
             this.entityData.set(DATA_WEB_MODE, (byte) WebMode.NONE.ordinal());
             PacketDistributor.sendToServer(new MountActionPayload(MountActionPayload.Action.RELEASE_WEB));
         } else if (this.surface != Direction.DOWN) {
+            // off a wall or ceiling: push away from it and along the look
             Vec3 n = this.getSurfaceNormal();
             this.setSurface(Direction.DOWN);
-            this.setDeltaMovement(n.scale(0.45 + 0.25 * power).add(look.scale(0.5 + 0.7 * power)));
+            this.setDeltaMovement(powered
+                    ? n.scale(0.6 + 0.5 * charge).add(look.scale(0.95 + 1.05 * charge))
+                    : n.scale(0.45 + 0.25 * power).add(look.scale(0.5 + 0.7 * power)));
         } else if (this.onGround()) {
             Vec3 flat = new Vec3(look.x, 0, look.z);
             flat = flat.lengthSqr() > 1.0E-4 ? flat.normalize() : Vec3.ZERO;
-            this.setDeltaMovement(flat.scale(0.45 + 0.85 * power).add(0, 0.5 + 0.45 * power, 0));
-        } else if (!this.usedAirJump && this.glideTicks < 8) {
+            if (powered) {
+                // all eight legs thrust at once: a long, high launch along the look, keeping the run-up
+                Vec3 v = this.getDeltaMovement();
+                double lift = 0.75 + 0.55 * charge + Math.max(0, look.y) * 0.35 * charge;
+                this.setDeltaMovement(flat.scale(0.8 + 0.95 * charge).add(v.x * 0.5, lift, v.z * 0.5));
+            } else {
+                this.setDeltaMovement(flat.scale(0.45 + 0.85 * power).add(0, 0.5 + 0.45 * power, 0));
+            }
+        } else if (!powered && !this.usedAirJump && this.glideTicks < 8) {
             // second jump in mid-air
             this.usedAirJump = true;
             Vec3 flat = new Vec3(look.x, 0, look.z);
@@ -2455,12 +2519,46 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         return this.isEncumbered() ? speed * 0.12F : speed;
     }
 
+    // ================================================================== jumping
+    /** Holding jump shorter than this is a plain jump; longer starts charging a power jump. */
+    public static final int JUMP_TAP_TICKS = 5;
+    /** Charge is full after this many ticks held; holding longer adds nothing. */
+    public static final int JUMP_FULL_CHARGE_TICKS = 32;
+    /** Ticks the rider has been holding jump while braced on a surface (rider's client). */
+    private int riderJumpHeld;
+
+    public static float chargeForHeldTicks(int held) {
+        return Mth.clamp((held - JUMP_TAP_TICKS) / (float) (JUMP_FULL_CHARGE_TICKS - JUMP_TAP_TICKS), 0.0F, 1.0F);
+    }
+
+    public void setRiderJumpHeld(int ticks) {
+        this.riderJumpHeld = ticks;
+    }
+
+    public float getJumpCharge() {
+        return this.entityData.get(DATA_JUMP_CHARGE);
+    }
+
+    /** Server: from the rider's report. Client: the rider's own instant copy. */
+    public void setJumpCharge(float charge) {
+        this.entityData.set(DATA_JUMP_CHARGE, Mth.clamp(charge, 0.0F, 1.0F));
+    }
+
+    /** Braced on something it can push off from (ground, wall, ceiling), not hanging on a line. */
+    public boolean isBracedForJump() {
+        return !this.getWebMode().isRope() && (this.onGround() || !this.isOnFloor()) && this.mountAnim <= 0;
+    }
+
     @Override
     public void onPlayerJump(int power) {
         if (this.getStamina() < 8.0F || this.isEncumbered()) {
             return;
         }
-        this.pendingRiderJump = power >= 90 ? 1.0F : 0.35F + 0.65F * Math.max(0, power) / 90.0F;
+        // the vanilla jump bar is ignored: a short press is a plain jump, a held press a power jump
+        // whose strength is the charge gathered while braced (values above 1 mean "powered")
+        int held = this.riderJumpHeld;
+        this.pendingRiderJump = held >= JUMP_TAP_TICKS && this.isBracedForJump() ? 1.0F + chargeForHeldTicks(held) : 0.6F;
+        this.riderJumpHeld = 0;
     }
 
     @Override
@@ -2470,9 +2568,13 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
 
     @Override
     public void handleStartJump(int power) {
-        this.care.useStamina(8.0F + 0.16F * Math.max(0, power));
-        this.triggerAnim("action", "leap");
-        this.playSound(ModSounds.LEAP.get(), 1.0F, 1.0F);
+        // the charge the rider reported decides what kind of launch this was
+        float charge = this.getJumpCharge();
+        this.care.useStamina(8.0F + 22.0F * charge);
+        boolean powered = charge > 0.05F;
+        this.triggerAnim("action", powered ? "power_leap" : "leap");
+        this.playSound(ModSounds.LEAP.get(), 1.0F + 0.4F * charge, 1.0F - 0.25F * charge);
+        this.setJumpCharge(0.0F);
     }
 
     @Override
@@ -2591,7 +2693,8 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
                 .triggerableAnim("land", LAND)
                 .triggerableAnim("leap", LEAP)
                 .triggerableAnim("dismount", DISMOUNT)
-                .triggerableAnim("grab", GRAB));
+                .triggerableAnim("grab", GRAB)
+                .triggerableAnim("power_leap", POWER_LEAP));
     }
 
     private PlayState movementState(AnimationState<GorewidowEntity> state) {

@@ -162,6 +162,74 @@ public final class GorewidowGameTests {
         });
     }
 
+    @GameTest(template = "arena", timeoutTicks = 100)
+    public static void chargedJumpIsFarStrongerThanATap(GameTestHelper helper) {
+        // a short press can never become a power jump, and the charge stops growing when full
+        helper.assertTrue(GorewidowEntity.chargeForHeldTicks(GorewidowEntity.JUMP_TAP_TICKS - 1) == 0.0F, "a tap charged");
+        helper.assertTrue(GorewidowEntity.chargeForHeldTicks(GorewidowEntity.JUMP_FULL_CHARGE_TICKS) == 1.0F, "never fully charged");
+        helper.assertTrue(GorewidowEntity.chargeForHeldTicks(400) == 1.0F, "charge grows without limit");
+        GorewidowEntity tap = spawnInert(helper, new Vec3(4, FLOOR, 8));
+        GorewidowEntity charged = spawnInert(helper, new Vec3(12, FLOOR, 8));
+        @SuppressWarnings("removal")
+        ServerPlayer rider = helper.makeMockServerPlayerInLevel();
+        rider.setYRot(0);
+        rider.setXRot(-10);
+        helper.runAfterDelay(10, () -> {
+            helper.assertTrue(tap.onGround() && charged.onGround(), "not standing");
+            tap.performRiderLeap(rider, 0.6F);
+            charged.performRiderLeap(rider, 2.0F);
+            Vec3 a = tap.getDeltaMovement();
+            Vec3 b = charged.getDeltaMovement();
+            helper.assertTrue(b.horizontalDistance() > a.horizontalDistance() * 1.6, "power jump not much further: " + a + " vs " + b);
+            helper.assertTrue(b.y > a.y + 0.3, "power jump not much higher: " + a + " vs " + b);
+            rider.discard();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 20)
+    public static void sailAfterAPowerJumpKeepsItsMomentum(GameTestHelper helper) {
+        Vec3 v = new Vec3(1.2, 0.2, 0);
+        Vec3 look = new Vec3(0.9, -0.2, 0.3).normalize();
+        double lowest = 0;
+        for (int t = 0; t < 30; t++) {
+            v = new Vec3(v.x * 0.91, (v.y - 0.08) * 0.98, v.z * 0.91);   // vanilla air step
+            v = GorewidowEntity.glideStep(v, look, t);
+            lowest = Math.min(lowest, v.y);
+        }
+        double speed = v.horizontalDistance();
+        helper.assertTrue(speed > 0.85, "the sail bled off the launch speed: " + speed);
+        helper.assertTrue(lowest >= -0.11 - 1.0E-6, "the sail did not cap the fall: " + lowest);
+        helper.assertTrue(v.z > 0.05, "never turned toward where the rider looks");
+        helper.succeed();
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 100)
+    public static void flyingIntoAWallCatchesHold(GameTestHelper helper) {
+        for (int x = 1; x <= 14; x++) {
+            for (int y = FLOOR; y < FLOOR + 7; y++) {
+                helper.setBlock(new BlockPos(x, y, 12), Blocks.STONE);
+            }
+        }
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 1.5, 6));
+        widow.setDeltaMovement(0, 0.35, 0.9);
+        helper.succeedWhen(() -> helper.assertTrue(widow.getSurface() == Direction.SOUTH,
+                "did not cling to the wall it flew into: " + widow.getSurface()));
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 100)
+    public static void leapingUpIntoACeilingCatchesHold(GameTestHelper helper) {
+        for (int x = 2; x <= 13; x++) {
+            for (int z = 2; z <= 13; z++) {
+                helper.setBlock(new BlockPos(x, FLOOR + 6, z), Blocks.STONE);
+            }
+        }
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR, 8));
+        helper.runAfterDelay(8, () -> widow.setDeltaMovement(0, 1.1, 0));
+        helper.succeedWhen(() -> helper.assertTrue(widow.getSurface() == Direction.UP,
+                "did not cling to the ceiling it leapt into: " + widow.getSurface()));
+    }
+
     @GameTest(template = "arena", timeoutTicks = 200)
     public static void webSwingKeepsTheRopeLength(GameTestHelper helper) {
         for (int x = 6; x <= 10; x++) {

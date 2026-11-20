@@ -58,6 +58,8 @@ public final class GorewidowClient {
     private static float lastXRot;
     private static long cameraRollTime;
     private static boolean lastSprint;
+    private static int jumpHeld;
+    private static int lastReportedCharge;
     private static boolean manualStance;
     private static boolean lastStance;
     private static boolean lastGlide;
@@ -82,6 +84,7 @@ public final class GorewidowClient {
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraDistance);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onCameraAngles);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onFov);
+        NeoForge.EVENT_BUS.addListener(GorewidowClient::onGuiLayer);
         NeoForge.EVENT_BUS.addListener(GorewidowClient::onLogout);
         if (Boolean.getBoolean("gorewidow.showcase")) {
             com.vladosiwe.gorewidow.client.dev.DevShowcase.enable();
@@ -222,6 +225,21 @@ public final class GorewidowClient {
             while (KEY_STANCE.consumeClick()) {
                 manualStance = !manualStance;
             }
+            // power jump: holding jump while braced gathers strength (shown to everyone); the release
+            // itself goes through the vanilla riding-jump path, which reads the held time
+            if (mc.options.keyJump.isDown() && mount.isBracedForJump() && !mount.isWeaponStance()) {
+                jumpHeld++;
+            } else if (!mc.options.keyJump.isDown()) {
+                jumpHeld = 0;
+            }
+            mount.setRiderJumpHeld(jumpHeld);
+            float charge = GorewidowEntity.chargeForHeldTicks(jumpHeld);
+            int reported = Math.round(charge * 20) * 5;
+            if (reported != lastReportedCharge) {
+                lastReportedCharge = reported;
+                mount.setJumpCharge(reported / 100.0F);
+                PacketDistributor.sendToServer(new com.vladosiwe.gorewidow.network.JumpChargePayload(reported));
+            }
             while (KEY_CAMERA_TILT.consumeClick()) {
                 GorewidowClientConfig.CameraMode next = GorewidowClientConfig.CAMERA.get().next();
                 GorewidowClientConfig.CAMERA.set(next);
@@ -266,6 +284,8 @@ public final class GorewidowClient {
         } else {
             lastSprint = false;
             lastGlide = false;
+            jumpHeld = 0;
+            lastReportedCharge = 0;
             lastStance = false;
             manualStance = false;
             while (KEY_STANCE.consumeClick()) { /* not riding */ }
@@ -480,6 +500,14 @@ public final class GorewidowClient {
         lastYRot = yRot;
         lastXRot = xRot;
         turnTracked = true;
+    }
+
+    /** The vanilla jump bar (a horse's) means nothing here: the mount HUD shows the real charge. */
+    private static void onGuiLayer(net.neoforged.neoforge.client.event.RenderGuiLayerEvent.Pre event) {
+        if (event.getName().equals(net.neoforged.neoforge.client.gui.VanillaGuiLayers.JUMP_METER)
+                && Minecraft.getInstance().player != null && Minecraft.getInstance().player.getVehicle() instanceof GorewidowEntity) {
+            event.setCanceled(true);
+        }
     }
 
     /** A slightly wider field of view while hanging under the mount, to see more around it. */

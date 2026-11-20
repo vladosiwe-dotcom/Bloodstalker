@@ -146,7 +146,7 @@ takes 35% less damage and the mount carries 60 more weight.
 | Key (rebindable) | Action |
 |---|---|
 | W/A/S/D | Move relative to where you look, on any surface. Walk into a wall to climb it |
-| Space | Leap. In the air, tap it again for a **double jump**; **hold** it while falling to **sail**: it throws its legs wide and rolls them so the membranes lie flat like a canopy, hangs almost still for a moment, then sinks slowly, drifting where you look. On a wall or ceiling, jump off it. On a web line, let go and keep the momentum |
+| Space | **Tap**: a normal leap (off the ground, a wall or a ceiling; tap again in the air for a **double jump**). **Hold** while braced: it sinks on its legs and **charges a power jump** (the charge bar is in the mount panel; full after about 1.5 s, holding longer adds nothing; everyone sees it crouch); **release**: all legs thrust and it launches far and high along your look. **Hold** in the air to **sail**: legs thrown wide, membranes flat; slow, it hangs almost still for a moment, out of a power jump it keeps its speed and steers toward your look. It reaches for the ground before touching down and takes the landing in its legs; flying into a wall or a ceiling it catches hold and climbs on |
 | R | Shoot a web line at the crosshair: a block becomes a swing anchor, a creature gets pulled in. Press again to release |
 | C | **Slingshot**: fire two lines in a V ahead and launch yourself between them (25 stamina) |
 | Z / X | Reel the line in / pay it out |
@@ -221,7 +221,7 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 26 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 30 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts

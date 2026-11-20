@@ -354,6 +354,25 @@ public final class DevShowcase {
             Vec3 goal = c.at(0.5, 13, 3.5);
             c.first().getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, 0.8);
         }, new Vec3(-6.5, 4, 0), new Vec3(0.5, 3.5, 2.5), false));
+        SCENES.add(new Scene("jump_film", 105, c -> {
+            c.fill(14, 0, -4, 14, 7, 4, Blocks.STONE_BRICKS.defaultBlockState());
+            c.widow(-8, 0, 0, 270);
+        }, c -> {
+            GorewidowEntity w = c.first();
+            Vec3 look = new Vec3(1, 0.25, 0).normalize();
+            if (ticks >= 8 && ticks < 40) {
+                w.setJumpCharge(GorewidowEntity.chargeForHeldTicks(ticks - 8));   // held: gathering
+            } else if (ticks == 40) {
+                w.setJumpCharge(0);
+                w.performLeap(look, 1.0F + GorewidowEntity.chargeForHeldTicks(32));
+                w.triggerAnim("action", "power_leap");
+            } else if (ticks > 52 && !w.onGround() && w.isOnFloor()) {
+                w.setRiderGliding(true);                                          // into the sail
+                w.setDeltaMovement(GorewidowEntity.glideStep(w.getDeltaMovement(), look, ticks - 52));
+            } else {
+                w.setRiderGliding(false);
+            }
+        }, new Vec3(2, 6, -16), new Vec3(2, 3, 0), false));
         SCENES.add(new Scene("glide_film", 45, c -> {
             GorewidowEntity w = c.widow(0, 12, 0, 30);
             w.tame(c.player);

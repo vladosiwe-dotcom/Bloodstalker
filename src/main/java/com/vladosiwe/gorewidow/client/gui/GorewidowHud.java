@@ -71,6 +71,11 @@ public final class GorewidowHud {
         if (showWeight) {
             UiDraw.bar(g, 4, y + 21, w - 8, 4, load, mount.isEncumbered() ? UiDraw.HEALTH : UiDraw.WEIGHT);
         }
+        float charge = mount.getJumpCharge();
+        if (charge > 0.0F) {
+            // power-jump charge, red when full
+            UiDraw.bar(g, 4, h - 3, w - 8, 2, charge, charge >= 1.0F ? UiDraw.HEALTH : UiDraw.STAMINA);
+        }
         g.pose().popPose();
     }
 
