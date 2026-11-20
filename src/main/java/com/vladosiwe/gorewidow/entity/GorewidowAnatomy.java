@@ -8,8 +8,8 @@ package com.vladosiwe.gorewidow.entity;
 public final class GorewidowAnatomy {
     private GorewidowAnatomy() {}
 
-    public static final float BODY_HEIGHT = 32.0f;
-    public static final float HIP_HEIGHT = 31.5f;
+    public static final float BODY_HEIGHT = 38.0f;
+    public static final float HIP_HEIGHT = 37.5f;
     public static final float COXA = 2.0f;
     public static final float TARSUS = 10.0f;
     public static final float TARSUS_ELEVATION = (float) Math.toRadians(-80.0);
@@ -19,12 +19,15 @@ public final class GorewidowAnatomy {
     public static final int[] LEG_CHAIN_SIGN = {-1, -1, -1, -1, 1, 1, 1, 1};
     /** Gait group for the alternating tetrapod gait. */
     public static final int[] LEG_GROUP = {1, 0, 1, 0, 0, 1, 0, 1};
-    public static final float[][] HIP = {{-6.0f, 31.5f, -6.0f}, {-6.0f, 31.5f, -2.4f}, {-6.0f, 31.5f, 1.2f}, {-6.0f, 31.5f, 4.8f}, {6.0f, 31.5f, -6.0f}, {6.0f, 31.5f, -2.4f}, {6.0f, 31.5f, 1.2f}, {6.0f, 31.5f, 4.8f}};
+    public static final float[][] HIP = {{-6.0f, 37.5f, -6.0f}, {-6.0f, 37.5f, -2.4f}, {-6.0f, 37.5f, 1.2f}, {-6.0f, 37.5f, 4.8f}, {6.0f, 37.5f, -6.0f}, {6.0f, 37.5f, -2.4f}, {6.0f, 37.5f, 1.2f}, {6.0f, 37.5f, 4.8f}};
     public static final float[] REST_YAW = {-0.942478f, -0.383972f, 0.244346f, 0.802851f, 0.942478f, 0.383972f, -0.244346f, -0.802851f};
-    public static final float[] FEMUR = {30.0f, 28.0f, 28.0f, 30.0f, 30.0f, 28.0f, 28.0f, 30.0f};
-    public static final float[] TIBIA = {46.0f, 42.0f, 42.0f, 46.0f, 46.0f, 42.0f, 42.0f, 46.0f};
+    public static final float[] FEMUR = {35.0f, 32.5f, 32.5f, 35.0f, 35.0f, 32.5f, 32.5f, 35.0f};
+    public static final float[] TIBIA = {32.4f, 29.4f, 29.4f, 32.4f, 32.4f, 29.4f, 29.4f, 32.4f};
+    /** Flexible metatarsus below the tibia; it curls in further as the leg folds. */
+    public static final float[] META = {21.6f, 19.6f, 19.6f, 21.6f, 21.6f, 19.6f, 19.6f, 21.6f};
+    public static final float META_BEND_REST = (float) Math.toRadians(-22.0);
     /** Rest foot positions on the surface plane (y = 0). */
-    public static final float[][] REST_FOOT = {{-31.8626f, 0f, -41.5967f}, {-41.2330f, 0f, -16.6351f}, {-42.8712f, 0f, 10.3930f}, {-36.5650f, 0f, 36.4510f}, {31.8626f, 0f, -41.5967f}, {41.2330f, 0f, -16.6351f}, {42.8712f, 0f, 10.3930f}, {36.5650f, 0f, 36.4510f}};
+    public static final float[][] REST_FOOT = {{-35.3893f, 0f, -46.4508f}, {-45.8689f, 0f, -18.5081f}, {-47.7227f, 0f, 11.6026f}, {-40.7329f, 0f, 40.7670f}, {35.3893f, 0f, -46.4508f}, {45.8689f, 0f, -18.5081f}, {47.7227f, 0f, 11.6026f}, {40.7329f, 0f, 40.7670f}};
     /** Grasping arms under the thorax that hold the rider (same chain layout as the legs). */
     public static final String[] CLASP_NAMES = {"clasp_l1", "clasp_l2", "clasp_r1", "clasp_r2"};
     public static final int[] CLASP_CHAIN_SIGN = {-1, -1, 1, 1};
@@ -37,7 +40,7 @@ public final class GorewidowAnatomy {
     public static final float CLASP_TARSUS_ELEVATION = (float) Math.toRadians(-140.0);
     public static final float[] CLASP_FOLD = {(float) Math.toRadians(38.0), (float) Math.toRadians(-150.0), (float) Math.toRadians(-45.0)};
     /** Spinneret tip (web origin) at rest. */
-    public static final float[] SPINNERET = {0f, 32.0f, 38.725f};
+    public static final float[] SPINNERET = {0f, 38.0f, 38.725f};
     /** Mouth / fang position at rest. */
-    public static final float[] MOUTH = {0f, 25.750f, -18.125f};
+    public static final float[] MOUTH = {0f, 31.750f, -18.125f};
 }

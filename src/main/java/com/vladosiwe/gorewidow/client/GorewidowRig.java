@@ -9,6 +9,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -65,6 +66,21 @@ public final class GorewidowRig {
     private final int[] stepLength = new int[LEGS];
     private final boolean[] stepping = new boolean[LEGS];
     private final Vec3[] footRender = new Vec3[LEGS];
+    /** Whether each foot really rests on a block (false: it hangs free, looking for a hold). */
+    private final boolean[] contact = new boolean[LEGS];
+    /** Surface normal under each planted foot. */
+    private final Vec3[] footNormal = new Vec3[LEGS];
+    /** Ticks until a foot without a hold searches again (spreads the ray casts out). */
+    private final int[] retryIn = new int[LEGS];
+    /** Feet currently holding on (not stepping, in contact), for balance. */
+    private int supportCount = LEGS;
+    private float lowerForSupport;
+    private float leanPitch;
+    private float leanRoll;
+    private float leanPitchTarget;
+    private float leanRollTarget;
+    private float lastYawForLean = Float.NaN;
+    private Vec3 lastVelocity = Vec3.ZERO;
     private float stepHeight = 0.4F;
     private float ikWeight;
     private float ikTarget;
@@ -167,6 +183,8 @@ public final class GorewidowRig {
     }
 
     private float claspHold;
+    /** Current metatarsus bend per leg (radians, negative curls in). */
+    private final float[] metaBend = initialBend();
     /** Body bone transform (model px, internal space) as of the last model update. */
     private final Matrix4f bodyMatrix = new Matrix4f();
     @Nullable
@@ -227,6 +245,12 @@ public final class GorewidowRig {
         return m.getNormalizedRotation(new Quaternionf());
     }
 
+    private static float[] initialBend() {
+        float[] b = new float[LEGS];
+        java.util.Arrays.fill(b, GorewidowAnatomy.META_BEND_REST);
+        return b;
+    }
+
     // ================================================================= gait (client tick)
 
     public void tick(GorewidowEntity widow) {
@@ -277,6 +301,8 @@ public final class GorewidowRig {
             if (this.stepping[i] && ++this.stepTick[i] >= this.stepLength[i]) {
                 this.stepping[i] = false;
                 this.planted[i] = this.stepTo[i];
+                this.contact[i] = this.pendingContact[i];
+                this.footNormal[i] = this.pendingNormal[i] != null ? this.pendingNormal[i] : new Vec3(this.up);
                 if (supported && widow.level().random.nextInt(3) == 0) {
                     Vec3 f = this.planted[i];
                     widow.level().playLocalSound(f.x, f.y, f.z, ModSounds.STEP.get(), SoundSource.HOSTILE,
@@ -294,29 +320,43 @@ public final class GorewidowRig {
         this.stepHeight = 0.3F + (float) Math.min(0.5, speed * 1.2);
         double threshold = 0.42 + Math.min(0.35, speed * 0.6);
         Vec3 lead = velocity.scale(stepTicks * 0.9 + 2.0);
+        this.updateLean(widow, velocity);
 
         int activeGroup = -1;
+        int steppingCount = 0;
         for (int i = 0; i < LEGS; i++) {
             if (this.stepping[i]) {
-                activeGroup = GorewidowAnatomy.LEG_GROUP[i];
-                break;
+                steppingCount++;
+                if (activeGroup < 0) {
+                    activeGroup = GorewidowAnatomy.LEG_GROUP[i];
+                }
             }
         }
         double[] error = new double[LEGS];
+        boolean[] urgent = new boolean[LEGS];
         double[] groupError = new double[2];
         Vec3[] rest = new Vec3[LEGS];
         for (int i = 0; i < LEGS; i++) {
             float[] r = GorewidowAnatomy.REST_FOOT[i];
             rest[i] = this.modelToWorld(r[0], r[1], r[2]);
             if (this.planted[i] == null) {
-                this.planted[i] = this.probe(widow, rest[i]);
+                this.plant(widow, i, rest[i]);
                 continue;
             }
             error[i] = this.planted[i].distanceTo(rest[i].add(lead.scale(0.5)));
             if (error[i] > 3.0) {
-                this.planted[i] = this.probe(widow, rest[i]);
+                this.plant(widow, i, rest[i]);
                 this.stepping[i] = false;
                 error[i] = 0;
+            }
+            if (!this.stepping[i]) {
+                // a foot is moved at once, whatever the gait says, when it is out of reach, has lost its
+                // hold (the block went away) or never had one and it is time to look again
+                Vec3 hip = this.hipWorld(i);
+                boolean tooFar = this.planted[i].distanceTo(hip) > this.legReach(i) * 0.97;
+                boolean lost = this.contact[i] && (widow.tickCount + i) % 4 == 0 && !this.isHold(widow, this.planted[i], this.footNormal[i]);
+                boolean search = !this.contact[i] && --this.retryIn[i] <= 0;
+                urgent[i] = tooFar || lost || search;
             }
             groupError[GorewidowAnatomy.LEG_GROUP[i]] += error[i];
         }
@@ -324,27 +364,198 @@ public final class GorewidowRig {
             activeGroup = groupError[0] >= groupError[1] ? 0 : 1;
         }
         for (int i = 0; i < LEGS; i++) {
-            if (this.stepping[i] || GorewidowAnatomy.LEG_GROUP[i] != activeGroup) {
+            if (this.stepping[i]) {
                 continue;
             }
-            boolean otherGroupStepping = false;
-            for (int j = 0; j < LEGS; j++) {
-                if (this.stepping[j] && GorewidowAnatomy.LEG_GROUP[j] != activeGroup) {
-                    otherGroupStepping = true;
-                    break;
-                }
-            }
-            if (otherGroupStepping) {
-                continue;
-            }
-            if (error[i] > threshold || (error[i] > threshold * 0.55 && this.anyStepping(activeGroup))) {
-                this.stepFrom[i] = this.planted[i];
-                this.stepTo[i] = this.probe(widow, rest[i].add(lead));
+            boolean gaitTurn = GorewidowAnatomy.LEG_GROUP[i] == activeGroup && !this.otherGroupStepping(activeGroup)
+                    && (error[i] > threshold || (error[i] > threshold * 0.55 && this.anyStepping(activeGroup)));
+            // urgent steps keep at least the neighbours planted, so the body is never left on one side
+            boolean urgentOk = urgent[i] && steppingCount < 3 && !this.neighbourStepping(i);
+            if (gaitTurn || urgentOk) {
+                Foothold hold = this.findFoothold(widow, i, rest[i].add(lead));
+                this.stepFrom[i] = this.footRender[i] != null ? this.footRender[i] : this.planted[i];
+                this.stepTo[i] = hold.pos();
+                this.pendingContact[i] = hold.contact();
+                this.pendingNormal[i] = hold.normal();
                 this.stepTick[i] = 0;
                 this.stepLength[i] = stepTicks;
                 this.stepping[i] = true;
+                steppingCount++;
+                if (!hold.contact()) {
+                    this.retryIn[i] = 6;
+                }
             }
         }
+        int support = 0;
+        for (int i = 0; i < LEGS; i++) {
+            if (!this.stepping[i] && this.contact[i]) {
+                support++;
+            }
+        }
+        this.supportCount = support;
+    }
+
+    private boolean otherGroupStepping(int group) {
+        for (int j = 0; j < LEGS; j++) {
+            if (this.stepping[j] && GorewidowAnatomy.LEG_GROUP[j] != group) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The legs directly in front of and behind this one on the same side. */
+    private boolean neighbourStepping(int leg) {
+        int side = leg / 4;
+        int idx = leg % 4;
+        for (int d = -1; d <= 1; d += 2) {
+            int n = idx + d;
+            if (n >= 0 && n < 4 && this.stepping[side * 4 + n]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void plant(GorewidowEntity widow, int leg, Vec3 desired) {
+        Foothold hold = this.findFoothold(widow, leg, desired);
+        this.planted[leg] = hold.pos();
+        this.contact[leg] = hold.contact();
+        this.footNormal[leg] = hold.normal();
+        this.retryIn[leg] = hold.contact() ? 0 : 6;
+    }
+
+    // ---------------------------------------------------------------- footholds
+
+    /** Where a foot ended up and on what. */
+    private record Foothold(Vec3 pos, Vec3 normal, boolean contact) {}
+
+    private final boolean[] pendingContact = new boolean[LEGS];
+    private final Vec3[] pendingNormal = new Vec3[LEGS];
+
+    public Vec3 hipWorld(int leg) {
+        float[] hip = GorewidowAnatomy.HIP[leg];
+        return this.modelToWorld(hip[0], hip[1], hip[2]);
+    }
+
+    /** Longest straight hip-to-foot distance the leg can span (world units). */
+    public double legReach(int leg) {
+        return (GorewidowAnatomy.COXA + GorewidowAnatomy.FEMUR[leg] + GorewidowAnatomy.TIBIA[leg] + GorewidowAnatomy.META[leg]
+                + GorewidowAnatomy.TARSUS) * PX * this.scale;
+    }
+
+    /** Straight-line length from knee to ankle for the current metatarsus bend (the IK's "tibia"). */
+    private float chord(int leg) {
+        float a = GorewidowAnatomy.TIBIA[leg];
+        float b = GorewidowAnatomy.META[leg];
+        float bend = this.metaBend[leg];
+        return Mth.sqrt(a * a + b * b + 2 * a * b * Mth.cos(bend));
+    }
+
+    /** Angle between the tibia and that chord. */
+    private float chordOffset(int leg) {
+        float a = GorewidowAnatomy.TIBIA[leg];
+        float b = GorewidowAnatomy.META[leg];
+        float bend = this.metaBend[leg];
+        return (float) Math.atan2(b * Mth.sin(bend), a + b * Mth.cos(bend));
+    }
+
+    /**
+     * Each leg looks for its own hold. Candidates, all checked against the leg's real reach, against
+     * ending up inside a block and against the leg passing through blocks:
+     * <ol>
+     *   <li>straight below where the foot should go (open ground, wide walls);</li>
+     *   <li>closer in toward the body, below (narrow ledges and 1-block pillars: the legs pull in);</li>
+     *   <li>reaching in sideways toward the body's own patch of surface (hooking round the sides of a
+     *   pillar or beam);</li>
+     *   <li>reaching out along the leg (a wall or ceiling ahead, used before the body turns onto it).</li>
+     * </ol>
+     * The candidate nearest to where the foot should go wins. If none is valid the foot hangs free and
+     * the rest of the legs carry the body.
+     */
+    private Foothold findFoothold(GorewidowEntity widow, int leg, Vec3 desired) {
+        Vec3 u = new Vec3(this.up);
+        Vec3 hip = this.hipWorld(leg);
+        double reach = this.legReach(leg);
+        double cell = 1.0 * this.scale;
+        Vec3 bodyBase = this.origin;
+        Vec3 hipOnPlane = hip.subtract(u.scale(u.dot(hip.subtract(bodyBase))));
+
+        Foothold best = null;
+        double bestScore = Double.MAX_VALUE;
+        Vec3[][] rays = {
+                {desired.add(u.scale(1.4 * cell)), desired.subtract(u.scale(1.8 * cell))},
+                {desired.lerp(hipOnPlane, 0.35).add(u.scale(1.2 * cell)), desired.lerp(hipOnPlane, 0.35).subtract(u.scale(1.6 * cell))},
+                {desired.lerp(hipOnPlane, 0.6).add(u.scale(1.0 * cell)), desired.lerp(hipOnPlane, 0.6).subtract(u.scale(1.5 * cell))},
+                {desired.add(u.scale(0.2 * cell)), bodyBase.subtract(u.scale(0.3 * cell))},
+                {hip, hip.add(desired.subtract(hip).scale(1.3))},
+        };
+        for (int k = 0; k < rays.length; k++) {
+            BlockHitResult hit = widow.level().clip(new ClipContext(rays[k][0], rays[k][1], ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.NONE, CollisionContext.empty()));
+            if (hit.getType() != HitResult.Type.BLOCK || hit.isInside()) {
+                continue;
+            }
+            Vec3 normal = Vec3.atLowerCornerOf(hit.getDirection().getNormal());
+            Vec3 p = hit.getLocation().add(normal.scale(0.02));
+            double d = p.distanceTo(hip);
+            if (d > reach * 0.95 || d < reach * 0.18 || !this.isHold(widow, p, normal) || this.legBlocked(widow, hip, p)) {
+                continue;
+            }
+            // nearest to the intended spot; holds facing away from the body (under-sides seen from the
+            // wrong side) are poor
+            double score = p.distanceTo(desired) + (normal.dot(u) < -0.5 ? 1.5 : 0) + k * 0.05;
+            if (score < bestScore) {
+                bestScore = score;
+                best = new Foothold(p, normal, true);
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        // nothing to hold: the foot hangs in, a little below the body, ready to grab
+        Vec3 free = desired.lerp(hipOnPlane, 0.35).subtract(u.scale(0.25 * cell));
+        return new Foothold(free, u, false);
+    }
+
+    /** A real, solid face to stand on at p (the block behind it is solid, the spot in front is free). */
+    private boolean isHold(GorewidowEntity widow, Vec3 p, Vec3 normal) {
+        Vec3 behind = p.subtract(normal.scale(0.12));
+        Vec3 front = p.add(normal.scale(0.08));
+        return !widow.level().noCollision(new AABB(behind, behind).inflate(0.03))
+                && widow.level().noCollision(new AABB(front, front).inflate(0.03));
+    }
+
+    /** The leg's line from the hip would pass through a block before reaching the foot. */
+    private boolean legBlocked(GorewidowEntity widow, Vec3 hip, Vec3 foot) {
+        Vec3 d = foot.subtract(hip);
+        double len = d.length();
+        if (len < 0.3) {
+            return false;
+        }
+        Vec3 end = hip.add(d.scale((len - 0.2) / len));
+        return widow.level().clip(new ClipContext(hip, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                CollisionContext.empty())).getType() == HitResult.Type.BLOCK;
+    }
+
+    /** Leans with the motion: forward when speeding up, back when braking, into turns. */
+    private void updateLean(GorewidowEntity widow, Vec3 velocity) {
+        Vec3 f = this.forward();
+        Vec3 u = new Vec3(this.up);
+        Vec3 side = f.cross(u);
+        Vec3 accel = velocity.subtract(this.lastVelocity);
+        this.lastVelocity = velocity;
+        float yaw = widow.getYRot();
+        float turn = Float.isNaN(this.lastYawForLean) ? 0 : Mth.wrapDegrees(yaw - this.lastYawForLean);
+        this.lastYawForLean = yaw;
+        double speed = velocity.length();
+        this.leanPitchTarget = (float) Mth.clamp(accel.dot(f) * 2.2 + velocity.dot(f) * 0.25, -0.14, 0.14);
+        this.leanRollTarget = (float) Mth.clamp(turn * Mth.DEG_TO_RAD * speed * 3.0 - accel.dot(side) * 1.5, -0.12, 0.12);
+    }
+
+    /** Feet currently holding on (0..8). */
+    public int supportCount() {
+        return this.supportCount;
     }
 
     private boolean anyStepping(int group) {
@@ -354,18 +565,6 @@ public final class GorewidowRig {
             }
         }
         return false;
-    }
-
-    /** Finds the surface point under a desired foot position, searching along the body's down axis. */
-    private Vec3 probe(GorewidowEntity widow, Vec3 desired) {
-        Vec3 u = new Vec3(this.up);
-        Vec3 from = desired.add(u.scale(1.4));
-        Vec3 to = desired.subtract(u.scale(1.8));
-        BlockHitResult hit = widow.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
-        if (hit.getType() == HitResult.Type.BLOCK) {
-            return hit.getLocation();
-        }
-        return desired.subtract(u.scale(0.6));
     }
 
     @Nullable
@@ -451,10 +650,18 @@ public final class GorewidowRig {
             float pitch = (float) Mth.clamp(Math.atan2(front - back, 2.4) * 0.8, -0.45, 0.45) * w;
             float roll = (float) Mth.clamp(-Math.atan2(left - right, 3.6) * 0.8, -0.4, 0.4) * w;
             float rear = widow.getStanceBlend(partial);
+            // balance: with few feet holding it hugs the surface (center of mass down), and it leans
+            // with its own motion; both fade out while rearing
+            float lowerTarget = this.ikWeight * Math.max(0, 5 - this.supportCount) * 1.6F;
+            this.lowerForSupport += (lowerTarget - this.lowerForSupport) * blend * 0.5F;
+            this.leanPitch += (this.leanPitchTarget - this.leanPitch) * blend * 0.4F;
+            this.leanRoll += (this.leanRollTarget - this.leanRoll) * blend * 0.4F;
+            pitch += this.leanPitch * w;
+            roll += this.leanRoll * w;
             tilt.setRotX(pitch * (1 - rear) + rear * 1.18F);
             tilt.setRotZ(roll * (1 - rear));
             tilt.setRotY(0);
-            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F + this.rideLift);
+            tilt.setPosY((float) Mth.clamp(all * 16 * 0.6, -6, 8) * w - this.curl * 3.0F + rear * 13.0F + this.rideLift - this.lowerForSupport * (1 - rear));
         }
 
         // ---- neck look
@@ -503,6 +710,7 @@ public final class GorewidowRig {
             GeoBone femur = model.getBone(name + "_femur").orElse(null);
             GeoBone tibia = model.getBone(name + "_tibia").orElse(null);
             GeoBone tarsus = model.getBone(name + "_tarsus").orElse(null);
+            GeoBone meta = model.getBone(name + "_meta").orElse(null);
             if (coxa == null || femur == null || tibia == null || tarsus == null) {
                 continue;
             }
@@ -514,7 +722,7 @@ public final class GorewidowRig {
             Vec3 footModel = this.worldToModelPx(this.footRender[i]);
             Vector3f fb = invBody.transformPosition(new Vector3f((float) footModel.x, (float) footModel.y, (float) footModel.z));
             float[] ik = solve(fb.x - hip[0], fb.y - hip[1], fb.z - hip[2], c,
-                    GorewidowAnatomy.FEMUR[i], GorewidowAnatomy.TIBIA[i]);
+                    GorewidowAnatomy.FEMUR[i], this.chord(i));
             ik[0] = Mth.wrapDegrees((ik[0] - psi0) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
 
             // poses (yaw offset, femur elevation, tibia relative, tarsus relative)
@@ -563,7 +771,7 @@ public final class GorewidowRig {
                 Vec3 hold = centre.add(toHip.scale(radius)).add(0, height + Mth.sin(time * 9 + i) * 0.03, 0);
                 Vec3 holdModel = this.worldToModelPx(hold);
                 Vector3f hb = invBody.transformPosition(new Vector3f((float) holdModel.x, (float) holdModel.y, (float) holdModel.z));
-                float[] wrap = solve(hb.x - hip[0], hb.y - hip[1], hb.z - hip[2], c, GorewidowAnatomy.FEMUR[i], GorewidowAnatomy.TIBIA[i]);
+                float[] wrap = solve(hb.x - hip[0], hb.y - hip[1], hb.z - hip[2], c, GorewidowAnatomy.FEMUR[i], this.chord(i));
                 wrap[0] = Mth.wrapDegrees((wrap[0] - psi0) * Mth.RAD_TO_DEG) * Mth.DEG_TO_RAD;
                 wrap[3] = (float) Math.toRadians(-70);  // claws hooked in
                 angles = mix(angles, wrap, this.grip);
@@ -575,10 +783,21 @@ public final class GorewidowRig {
             // rolling the leg about its own length lays the membrane under it flat like a canopy
             femur.setRotX(this.sail * (float) Math.toRadians(SAIL_ROLL) * (idx < 2 ? 1 : -1) * c);
             femur.setRotY(0);
-            tibia.setRotZ(c * angles[2]);
+            // the lower leg flexes: the metatarsus curls in more the further the knee folds (relaxed in
+            // the sail), and the tibia / tarsus are set so the chord the IK solved for is kept exactly
+            float fold = Mth.clamp((-angles[2] - 1.2F) / 1.4F, 0, 1);
+            float bendTarget = (float) Math.toRadians(-(12 + 30 * fold)) * (1 - 0.6F * this.sail) + this.curl * (float) Math.toRadians(-25);
+            float gamma = this.chordOffset(i);
+            this.metaBend[i] += (bendTarget - this.metaBend[i]) * 0.25F;
+            tibia.setRotZ(c * (angles[2] - gamma));
             tibia.setRotX(0);
             tibia.setRotY(0);
-            tarsus.setRotZ(c * angles[3]);
+            if (meta != null) {
+                meta.setRotZ(c * this.metaBend[i]);
+                meta.setRotX(0);
+                meta.setRotY(0);
+            }
+            tarsus.setRotZ(c * (angles[3] + gamma - this.metaBend[i]));
             tarsus.setRotX(0);
             tarsus.setRotY(0);
         }

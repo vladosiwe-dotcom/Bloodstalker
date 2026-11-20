@@ -14,8 +14,8 @@ public final class ModEntities {
 
     public static final DeferredHolder<EntityType<?>, EntityType<GorewidowEntity>> GOREWIDOW = ENTITY_TYPES.register("gorewidow", () ->
             EntityType.Builder.of(GorewidowEntity::new, MobCategory.MONSTER)
-                    .sized(1.8F, 2.4F)
-                    .eyeHeight(2.0F)
+                    .sized(1.8F, 2.8F)
+                    .eyeHeight(2.3F)
                     .clientTrackingRange(10)
                     .updateInterval(2)
                     .build(Gorewidow.id("gorewidow").toString()));

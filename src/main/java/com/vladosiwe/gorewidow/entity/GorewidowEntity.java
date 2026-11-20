@@ -243,6 +243,9 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
     private boolean usedAirJump;
     private boolean riderGliding;
     private int glideTicks;
+    /** Fraction (0..1) of the leg rest positions that find solid surface: how well it is braced. */
+    private float surfaceSupport = 1.0F;
+    private int supportCheckIn;
     private Direction previousSurface = Direction.DOWN;
     /** Ticks after a surface change during which it will not flip straight back. */
     private int surfaceSettle;
@@ -1040,6 +1043,26 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         return !this.level().noCollision(this, box.move(d));
     }
 
+    /**
+     * Samples the eight places its feet would go on the current surface (a cheap block check each)
+     * and returns the share that have something to hold: 1 on a broad wall, low on a pillar.
+     */
+    public float measureSurfaceSupport() {
+        Vec3 n = this.getSurfaceNormal();
+        int held = 0;
+        for (float[] r : GorewidowAnatomy.REST_FOOT) {
+            Vec3 foot = this.modelToWorld(r[0], 0, r[2]).subtract(n.scale(0.3));
+            if (!this.level().noCollision(new AABB(foot, foot).inflate(0.35))) {
+                held++;
+            }
+        }
+        return held / (float) GorewidowAnatomy.REST_FOOT.length;
+    }
+
+    public float getSurfaceSupport() {
+        return this.surfaceSupport;
+    }
+
     public boolean hasContact(Direction dir) {
         return this.collidesToward(dir, 0.12);
     }
@@ -1223,11 +1246,16 @@ public class GorewidowEntity extends TamableAnimal implements GeoEntity, PlayerR
         if (this.surfaceSettle > 0) {
             this.surfaceSettle--;
         }
+        if (--this.supportCheckIn <= 0) {
+            this.supportCheckIn = 5;
+            this.surfaceSupport = this.measureSurfaceSupport();
+        }
         Vec3 n = this.getSurfaceNormal();
         Vec3 desired = this.desiredDirection(input, n);
         Vec3 t = desired.subtract(n.scale(desired.dot(n)));
         double tl = t.length();
-        double speed = this.surfaceSpeed();
+        // on a narrow hold (a pillar, a beam) only some legs find purchase: it moves carefully
+        double speed = this.surfaceSpeed() * (0.55 + 0.45 * Mth.clamp(this.surfaceSupport * 2.5F, 0.0F, 1.0F));
         Vec3 targetVel = tl > 1.0E-4 ? t.scale(speed * Math.min(1.0, tl) / tl) : Vec3.ZERO;
         Vec3 v = this.getDeltaMovement();
         Vec3 vt = v.subtract(n.scale(v.dot(n))).lerp(targetVel, 0.45);

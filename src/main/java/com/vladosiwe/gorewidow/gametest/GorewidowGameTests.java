@@ -47,7 +47,7 @@ public final class GorewidowGameTests {
                 helper.setBlock(new BlockPos(x, FLOOR + 5, z), Blocks.STONE);
             }
         }
-        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 5 - 2.4, 8));
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8, FLOOR + 5 - 2.8, 8));
         widow.setSurface(Direction.UP);
         double startY = widow.getY();
         helper.runAfterDelay(40, () -> {
@@ -80,10 +80,12 @@ public final class GorewidowGameTests {
         double topY = helper.absoluteVec(new Vec3(0, FLOOR + 5, 0)).y;
         boolean[] climbed = {false};
         boolean[] reachedTop = {false};
+        float[] wallSupport = {0};
         helper.onEachTick(() -> {
             widow.getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, 1.0);
             if (widow.getSurface() == Direction.SOUTH) {
                 climbed[0] = true;
+                wallSupport[0] = Math.max(wallSupport[0], widow.measureSurfaceSupport());
             }
             if (widow.getY() >= topY - 0.05) {
                 reachedTop[0] = true;
@@ -92,6 +94,7 @@ public final class GorewidowGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(climbed[0], "never attached to the wall");
             helper.assertTrue(reachedTop[0], "never reached the top of the wall");
+            helper.assertTrue(wallSupport[0] > 0.7F, "a broad wall should brace most legs, got " + wallSupport[0]);
         });
     }
 
@@ -132,6 +135,30 @@ public final class GorewidowGameTests {
             helper.assertTrue(owner.getVehicle() == widow, "did not take its owner up");
             owner.stopRiding();
             owner.discard();
+        });
+    }
+
+    @GameTest(template = "arena", timeoutTicks = 400)
+    public static void climbsAOneBlockWidePillar(GameTestHelper helper) {
+        for (int y = FLOOR; y < FLOOR + 9; y++) {
+            helper.setBlock(new BlockPos(8, y, 10), Blocks.STONE);
+        }
+        GorewidowEntity widow = spawnInert(helper, new Vec3(8.5, FLOOR, 7.5));
+        Vec3 goal = helper.absoluteVec(new Vec3(8.5, FLOOR + 12, 10.5));
+        double topY = helper.absoluteVec(new Vec3(0, FLOOR + 6, 0)).y;
+        boolean[] onPillar = {false};
+        float[] support = {0};
+        helper.onEachTick(() -> {
+            widow.getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, 1.0);
+            if (widow.getSurface() == Direction.NORTH || widow.getSurface() == Direction.SOUTH) {
+                onPillar[0] = true;
+                support[0] = Math.max(support[0], widow.measureSurfaceSupport());
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(onPillar[0], "never got hold of the pillar");
+            helper.assertTrue(support[0] < 0.6F, "a 1-block pillar should brace only a few legs, got " + support[0]);
+            helper.assertTrue(widow.getY() > topY, "did not climb the pillar: y=" + widow.getY() + " surface=" + widow.getSurface());
         });
     }
 

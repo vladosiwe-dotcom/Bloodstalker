@@ -135,7 +135,7 @@ public final class DevShowcase {
         SCENES.add(new Scene("ceiling", 40, c -> {
             c.fill(-4, 6, -4, 4, 6, 4, Blocks.DEEPSLATE_TILES.defaultBlockState());
             c.fill(4, 0, 4, 4, 5, 4, Blocks.DEEPSLATE_TILES.defaultBlockState());
-            GorewidowEntity w = c.widow(0, 6 - 2.4, 0, 30);
+            GorewidowEntity w = c.widow(0, 6 - 2.8, 0, 30);
             w.setSurface(Direction.UP);
         }, c -> {}, new Vec3(-4.5, 1.6, -5.0), new Vec3(0, 4.6, 0), false));
         SCENES.add(new Scene("web_swing", 40, c -> {
@@ -156,7 +156,7 @@ public final class DevShowcase {
         }, c -> {}, new Vec3(1, 3.5, -8), new Vec3(1, 1.0, 0), false));
         SCENES.add(new Scene("hang", 70, c -> {
             c.fill(-2, 10, -2, 2, 10, 2, Blocks.OAK_LEAVES.defaultBlockState());
-            GorewidowEntity w = c.widow(0, 10 - 2.4, 0, 0);
+            GorewidowEntity w = c.widow(0, 10 - 2.8, 0, 0);
             w.startHang(c.at(0, 10, 0), Direction.DOWN, 1.0F);
         }, c -> c.first().setAiReel(c.first().getRopeLength() < 4.5F ? -1.0F : 0.0F),
                 new Vec3(-5, 3.5, -5), new Vec3(0, 6.0, 0), false));
@@ -213,7 +213,7 @@ public final class DevShowcase {
             // hanging from a ceiling: the rider's view turns over with the mount
             c.fill(-6, 6, -6, 6, 6, 6, Blocks.DEEPSLATE_TILES.defaultBlockState());
             c.fill(-6, 0, 5, 6, 5, 5, Blocks.STONE_BRICKS.defaultBlockState());
-            GorewidowEntity w = c.widow(0, 6 - 2.4, 0, 0);
+            GorewidowEntity w = c.widow(0, 6 - 2.8, 0, 0);
             w.setSurface(Direction.UP);
             c.player.setGameMode(GameType.SURVIVAL);
             w.tame(c.player);
@@ -347,6 +347,13 @@ public final class DevShowcase {
                 LOGGER.info("corner t={} surface={} pos={} hc={}", ticks, c.first().getSurface(), c.first().position(), c.first().horizontalCollision);
             }
         }, new Vec3(-3, 3.5, -9), new Vec3(0, 3.5, 0), false));
+        SCENES.add(new Scene("pillar_film", 90, c -> {
+            c.fill(0, 0, 3, 0, 9, 3, Blocks.STONE_BRICKS.defaultBlockState());
+            c.widow(0.5, 0, 0.5, 0);
+        }, c -> {
+            Vec3 goal = c.at(0.5, 13, 3.5);
+            c.first().getMoveControl().setWantedPosition(goal.x, goal.y, goal.z, 0.8);
+        }, new Vec3(-6.5, 4, 0), new Vec3(0.5, 3.5, 2.5), false));
         SCENES.add(new Scene("glide_film", 45, c -> {
             GorewidowEntity w = c.widow(0, 12, 0, 30);
             w.tame(c.player);

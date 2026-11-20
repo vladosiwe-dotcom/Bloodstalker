@@ -41,7 +41,7 @@ BODY_SCALE = 1.25
 BODY_CENTRE = (0.0, 20.0, 0.0)
 # The body is authored around y=20 and then lifted: the Gorewidow carries its body slung high
 # between tall arched legs, with room for a rider hanging underneath.
-LIFT = 12.0
+LIFT = 18.0
 _scaling = False
 
 
@@ -188,12 +188,24 @@ _scaling = False
 # --- legs -------------------------------------------------------------------
 # angle a: degrees from the lateral axis toward the front (+) or back (-)
 LEGS = [
-    # idx, hip z, angle, femur, tibia, reach
-    (1, -6.0, 54.0, 30.0, 46.0, 44.0),
-    (2, -2.4, 22.0, 28.0, 42.0, 38.0),
-    (3, 1.2, -14.0, 28.0, 42.0, 38.0),
-    (4, 4.8, -46.0, 30.0, 46.0, 44.0),
+    # idx, hip z, angle, femur, lower leg (tibia + metatarsus), reach
+    (1, -6.0, 54.0, 35.0, 54.0, 50.0),
+    (2, -2.4, 22.0, 32.5, 49.0, 43.0),
+    (3, 1.2, -14.0, 32.5, 49.0, 43.0),
+    (4, 4.8, -46.0, 35.0, 54.0, 50.0),
 ]
+# The lower leg is two segments: tibia and a flexible metatarsus that curls in further as the leg
+# folds. The IK treats the pair as one chord whose length depends on that bend.
+META_FRAC = 0.4
+META_BEND_REST = -22.0   # deg, metatarsus relative to tibia at rest
+
+
+def lower_leg(tl, bend_deg):
+    """Tibia length, metatarsus length, chord length and chord angle offset for a given bend."""
+    a, b = tl * (1 - META_FRAC), tl * META_FRAC
+    beta = math.radians(bend_deg)
+    cx, cy = a + b * math.cos(beta), b * math.sin(beta)
+    return a, b, math.hypot(cx, cy), math.atan2(cy, cx)
 COXA = 2.0
 TARSUS = 10.0
 TARSUS_ELEV = -80.0   # tarsus absolute elevation at rest (deg)
@@ -272,7 +284,12 @@ for side, sname in ((1, "l"), (-1, "r")):
         sx = side
         cube(name + "_coxa", (hip[0] - 1.75 if sx > 0 else hip[0] - 1.75, hip[1] - 1.75, hip[2] - 1.75), (3.5, 3.5, 3.5), "joint")
         fem_pivot = (hip[0] + sx * COXA, hip[1], hip[2])
-        ef, et_rel, es_rel = solve_leg(reach, HIP_Y, fl, tl)
+        ta, tb, chord, gamma = lower_leg(tl, META_BEND_REST)
+        ef, et_rel, es_rel = solve_leg(reach, HIP_Y, fl, chord)
+        # the solve works on the chord: turn it back into tibia / metatarsus / tarsus rotations
+        tib_rot = et_rel - gamma
+        meta_rot = math.radians(META_BEND_REST)
+        tar_rot = es_rel + gamma - meta_rot
         # file rotation z for this side: internal phi = c * elevation, file z == internal z
         bone(name + "_femur", name + "_coxa", fem_pivot, rotation=(0, 0, c * math.degrees(ef)))
         arc_segments(name + "_femur", fem_pivot, sx, fl, 3.4, 2.4, ARCH * fl, "leg")
@@ -283,20 +300,25 @@ for side, sname in ((1, "l"), (-1, "r")):
         # silk membrane slung under the arch: grows toward the knee
         membrane(name + "_femur", fem_pivot, sx, fl, ARCH * fl, 0.4, 1.0, 2.0, 9.0, seed=idx * 7 + side)
         tib_pivot = (fem_pivot[0] + sx * fl, fem_pivot[1], fem_pivot[2])
-        bone(name + "_tibia", name + "_femur", tib_pivot, rotation=(0, 0, c * math.degrees(et_rel)))
-        arc_segments(name + "_tibia", tib_pivot, sx, tl, 2.7, 1.6, ARCH * tl, "leg")
+        bone(name + "_tibia", name + "_femur", tib_pivot, rotation=(0, 0, c * math.degrees(tib_rot)))
+        arc_segments(name + "_tibia", tib_pivot, sx, ta, 2.7, 2.0, ARCH * ta, "leg")
         cube(name + "_tibia", (tib_pivot[0] - 2.0, tib_pivot[1] - 2.0, tib_pivot[2] - 2.0), (4.0, 4.0, 4.0), "cap")
         # knee hook pointing up out of the arch
         cube(name + "_tibia", (tib_pivot[0] - 0.5, tib_pivot[1] + 1.2, tib_pivot[2] - 0.5), (1, 3.5, 1), "spike",
              rotation=(0, 0, -sx * 20), pivot=(tib_pivot[0], tib_pivot[1] + 1.2, tib_pivot[2]))
-        membrane(name + "_tibia", tib_pivot, sx, tl, ARCH * tl, 0.0, 0.55, 9.0, 1.5, seed=idx * 13 + side)
+        membrane(name + "_tibia", tib_pivot, sx, ta, ARCH * ta, 0.0, 0.9, 9.0, 2.0, seed=idx * 13 + side)
         # barbed flap at the end of the membrane
-        xb = tib_pivot[0] + sx * tl * 0.55 - (0 if sx > 0 else 2.0)
-        yb = tib_pivot[1] + arc_y(0.56, ARCH * tl) - 0.8
+        xb = tib_pivot[0] + sx * ta * 0.85 - (0 if sx > 0 else 2.0)
+        yb = tib_pivot[1] + arc_y(0.86, ARCH * ta) - 0.8
         cube(name + "_tibia", (xb, yb - 3.2, tib_pivot[2] - 0.25), (2.0, 3.2, 0.5), "spike",
              rotation=(0, 0, sx * 25), pivot=(xb + (0 if sx > 0 else 2.0), yb, tib_pivot[2]))
-        tar_pivot = (tib_pivot[0] + sx * tl, tib_pivot[1], tib_pivot[2])
-        bone(name + "_tarsus", name + "_tibia", tar_pivot, rotation=(0, 0, c * math.degrees(es_rel)))
+        # flexible metatarsus
+        meta_pivot = (tib_pivot[0] + sx * ta, tib_pivot[1], tib_pivot[2])
+        bone(name + "_meta", name + "_tibia", meta_pivot, rotation=(0, 0, c * math.degrees(meta_rot)))
+        arc_segments(name + "_meta", meta_pivot, sx, tb, 2.0, 1.6, ARCH * 0.5 * tb, "leg", n=3)
+        cube(name + "_meta", (meta_pivot[0] - 1.5, meta_pivot[1] - 1.5, meta_pivot[2] - 1.5), (3.0, 3.0, 3.0), "cap")
+        tar_pivot = (meta_pivot[0] + sx * tb, meta_pivot[1], meta_pivot[2])
+        bone(name + "_tarsus", name + "_meta", tar_pivot, rotation=(0, 0, c * math.degrees(tar_rot)))
         cube(name + "_tarsus", (tar_pivot[0] - 1.2, tar_pivot[1] - 1.2, tar_pivot[2] - 1.2), (2.4, 2.4, 2.4), "cap")
         # long scythe claw tapering to a blood-red point, hooked slightly at the end
         for (u0, u1, th, mat) in ((0.0, 0.5, 1.7, "leg"), (0.5, 0.8, 1.2, "claw"), (0.8, 1.0, 0.7, "claw")):
@@ -308,7 +330,7 @@ for side, sname in ((1, "l"), (-1, "r")):
                  rotation=rot, pivot=(x0, tar_pivot[1], tar_pivot[2]) if rot else None)
         leg_records.append({
             "name": name, "side": side, "idx": idx, "hip": hip, "psi0": psi0,
-            "femur": fl, "tibia": tl, "reach": reach, "angle": a,
+            "femur": fl, "tibia": ta, "meta": tb, "lower": tl, "reach": reach, "angle": a,
         })
 
 # --- claspers ----------------------------------------------------------------
@@ -615,6 +637,9 @@ lines.append("    public static final float[][] HIP = {" + ", ".join(
 lines.append("    public static final float[] REST_YAW = {" + ", ".join(f"{r['psi0']:.6f}f" for r in leg_records) + "};")
 lines.append("    public static final float[] FEMUR = {" + ", ".join(f"{r['femur']}f" for r in leg_records) + "};")
 lines.append("    public static final float[] TIBIA = {" + ", ".join(f"{r['tibia']}f" for r in leg_records) + "};")
+lines.append("    /** Flexible metatarsus below the tibia; it curls in further as the leg folds. */")
+lines.append("    public static final float[] META = {" + ", ".join(f"{r['meta']}f" for r in leg_records) + "};")
+lines.append(f"    public static final float META_BEND_REST = (float) Math.toRadians({META_BEND_REST});")
 rest = []
 for r in leg_records:
     c = -r["side"]

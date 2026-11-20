@@ -7,7 +7,8 @@ ride it the way a climber rides a harness, strapped face-down **under** its bell
 The creature, its model, textures, animations and sounds are all original.
 
 **Look.** A small armoured body with a fan of hooked spines on its head, slung high (about two
-blocks up) between eight very long, thick legs. Each leg rises in a tall bowed arch above the body,
+and a half blocks up) between eight very long, thick legs, each with a flexible lower segment that
+curls in as the leg folds. Each leg rises in a tall bowed arch above the body,
 with pale bone caps at every joint, and comes down almost vertically to a long scythe claw that
 fades to a blood-red point. The hide is black, mottled with deep crimson and cracked with veins that
 glow. Glowing runes mark the swollen abdomen. Crimson skin membranes stretch inside every arch. A
@@ -194,6 +195,15 @@ Passives, after ARK's Bloodstalker:
 - **Smooth surface changes.** The body turns onto a new surface over a fraction of a second, a
   one-step position change (wrapping round an outer edge) is blended out over a few frames, and
   right after a change it does not flip straight back (no flicker in inside corners).
+- **Footholds per leg.** Each leg finds its own hold: straight below, closer in to the body (narrow
+  ledges, 1-block pillars), hooked round the sides of a beam, or out ahead onto the next wall or
+  ceiling, so the front legs reach a new surface before the body turns onto it. Every hold is
+  checked against the leg's real reach, against sitting inside a block and against the leg passing
+  through blocks. A leg with nothing to hold hangs free and keeps looking; legs out of reach or whose
+  block vanished step at once, never both neighbours of a leg at a time.
+- **Balance.** With few feet holding it hugs the surface; it leans into acceleration and turns. The
+  same count drives the physics: it measures how many of its eight foot positions are braced and
+  moves more carefully on narrow holds.
 - **Procedural rig** (`client/GorewidowRig`). Every foot is planted in the world and re-placed in
   an alternating gait by ray-casting the surface ahead. An analytic IK solve per leg (coxa yaw plus
   two-bone with a near-vertical tarsus) reaches the planted foot, and the body pitches, rolls and
@@ -211,7 +221,7 @@ The mod is fully translated into Russian (`ru_ru`); every in-game string has an 
 ```
 ./gradlew build               # build the jar
 ./gradlew runClient           # play
-./gradlew runGameTestServer   # 25 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
+./gradlew runGameTestServer   # 26 game tests (incl. weapon stance): clinging, climbing, swing physics, tethering,
                               # slingshot, water walking, trust, feeding-tame, level-ups, cargo,
                               # mount sequence, riding underneath, rider drain, mating and eggs,
                               # incubation and hatching, imprinting, pulling riders off mounts
